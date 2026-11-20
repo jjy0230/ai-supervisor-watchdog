@@ -1,942 +1,1338 @@
 <!DOCTYPE html>
 <html lang="zh-CN">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Watchdog. — AI Supervisor Interactive Studio</title>
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin="">
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Gaegu:wght@400;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
-  <style>
-    :root {
-      --bg: #ffffff;
-      --fg: #111111;
-      --mint: #d7f1e1;
-      --peach: #ffe8d6;
-      --sky: #e0f2fe;
-      --lilac: #f3e8ff;
-      --shadow: rgba(0, 0, 0, 0.05) 0px 20px 50px;
-    }
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Watchdog.OS — AI Supervisor Telemetry & Control Plane</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin="">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            /* 100% Extracted from 06_Industrial Design Hub - Reporting Dashboard.html */
+            --bg-color: #0E0D0C;
+            --surface-color: rgba(28, 26, 25, 0.6);
+            --card-bg: rgba(35, 33, 32, 0.4);
+            --accent-glow: rgba(142, 136, 132, 0.15);
+            --border-subtle: rgba(255, 255, 255, 0.06);
+            --border-active: rgba(255, 255, 255, 0.12);
+            
+            --text-primary: #DCD6D1;
+            --text-secondary: #8E8884;
+            --text-muted: #5C5855;
+            
+            --radius-lg: 24px;
+            --radius-md: 12px;
+            --radius-sm: 8px;
+            
+            --font-main: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            --font-mono: 'JetBrains Mono', monospace;
 
-    * {
-      margin: 0;
-      padding: 0;
-      box-sizing: border-box;
-      -webkit-font-smoothing: antialiased;
-    }
+            /* Telemetry status colors */
+            --status-green: #A8C69F;
+            --status-amber: #C6C19F;
+            --status-red: #C6A89F;
+            --status-blue: #A8B2C6;
+        }
 
-    body {
-      background: var(--bg);
-      color: var(--fg);
-      font-family: 'Inter', sans-serif;
-      overflow: hidden;
-      height: 100vh;
-      width: 100vw;
-      cursor: default;
-      user-select: none;
-    }
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            -webkit-font-smoothing: antialiased;
+        }
 
-    .canvas {
-      position: relative;
-      width: 100%;
-      height: 100%;
-      overflow: hidden;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-    }
+        body {
+            background-color: var(--bg-color);
+            background-image: 
+                radial-gradient(circle at 50% -20%, rgba(142, 136, 132, 0.1) 0%, transparent 50%),
+                linear-gradient(rgba(255, 255, 255, 0.02) 1px, transparent 1px),
+                linear-gradient(90deg, rgba(255, 255, 255, 0.02) 1px, transparent 1px);
+            background-size: 100% 100%, 80px 80px, 80px 80px;
+            color: var(--text-primary);
+            font-family: var(--font-main);
+            min-height: 100vh;
+            padding: 32px;
+            display: flex;
+            flex-direction: column;
+            gap: 24px;
+        }
 
-    /* Top Nav */
-    nav {
-      position: fixed;
-      top: 32px;
-      left: 40px;
-      right: 40px;
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      z-index: 1000;
-    }
+        /* App Shell */
+        .app-shell {
+            max-width: 1440px;
+            margin: 0 auto;
+            width: 100%;
+            display: flex;
+            flex-direction: column;
+            gap: 28px;
+        }
 
-    .logo {
-      font-family: 'Gaegu', cursive;
-      font-size: 32px;
-      font-weight: 700;
-      letter-spacing: -1px;
-      color: var(--fg);
-      text-decoration: none;
-      display: flex;
-      align-items: center;
-      gap: 8px;
-    }
+        /* Header Navigation */
+        header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 0 4px;
+        }
 
-    .logo span.tag {
-      font-family: 'Inter', sans-serif;
-      font-size: 11px;
-      font-weight: 600;
-      background: #f5f5f5;
-      padding: 3px 8px;
-      border-radius: 100px;
-      letter-spacing: 0;
-      color: #666;
-    }
+        .brand {
+            display: flex;
+            align-items: center;
+            gap: 14px;
+            font-size: 13px;
+            letter-spacing: 0.12em;
+            text-transform: uppercase;
+            font-weight: 600;
+        }
 
-    .nav-links {
-      display: flex;
-      align-items: center;
-      gap: 24px;
-      font-size: 13px;
-      font-weight: 500;
-      color: #777;
-    }
+        .brand-icon {
+            width: 28px;
+            height: 28px;
+            background: var(--text-primary);
+            mask: radial-gradient(circle at 50% 50%, black 15%, transparent 20%), 
+                  conic-gradient(from 45deg, black 0%, transparent 25%, black 50%, transparent 75%, black 100%);
+            -webkit-mask: radial-gradient(circle at 50% 50%, black 15%, transparent 20%), 
+                          conic-gradient(from 45deg, black 0%, transparent 25%, black 50%, transparent 75%, black 100%);
+            border-radius: 50%;
+        }
 
-    .nav-links a {
-      text-decoration: none;
-      color: inherit;
-      transition: color 0.2s;
-    }
+        .brand-sub {
+            color: var(--text-muted);
+            font-size: 11px;
+            font-family: var(--font-mono);
+            letter-spacing: 0.05em;
+        }
 
-    .nav-links a:hover {
-      color: var(--fg);
-    }
+        nav {
+            display: flex;
+            background: var(--surface-color);
+            backdrop-filter: blur(12px);
+            padding: 4px;
+            border-radius: 40px;
+            border: 1px solid var(--border-subtle);
+            gap: 2px;
+        }
 
-    /* Center Hero */
-    .hero {
-      text-align: center;
-      max-width: 540px;
-      z-index: 10;
-      pointer-events: none;
-      margin-top: -30px;
-    }
+        nav button {
+            background: transparent;
+            border: none;
+            color: var(--text-secondary);
+            padding: 8px 18px;
+            font-size: 12px;
+            border-radius: 30px;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            font-family: var(--font-main);
+        }
 
-    .hero h1 {
-      font-family: 'Gaegu', cursive;
-      font-size: 68px;
-      line-height: 0.9;
-      margin-bottom: 20px;
-      letter-spacing: -1px;
-    }
+        nav button:hover {
+            color: var(--text-primary);
+        }
 
-    .scenario-pill {
-      display: inline-flex;
-      align-items: center;
-      padding: 10px 20px;
-      background: #f5f5f5;
-      border-radius: 100px;
-      gap: 12px;
-      color: #444;
-      font-size: 13px;
-      font-weight: 500;
-      pointer-events: auto;
-      cursor: pointer;
-      border: 1px solid rgba(0,0,0,0.04);
-      transition: all 0.3s cubic-bezier(0.23, 1, 0.32, 1);
-      box-shadow: 0 4px 16px rgba(0,0,0,0.03);
-    }
+        nav button.active {
+            background: var(--card-bg);
+            color: var(--text-primary);
+            box-shadow: 0 2px 8px rgba(0,0,0,0.2);
+            font-weight: 500;
+        }
 
-    .scenario-pill:hover {
-      transform: scale(1.02);
-      background: #ebebeb;
-    }
+        .user-actions {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
 
-    .scenario-pill select {
-      background: transparent;
-      border: none;
-      outline: none;
-      font-family: inherit;
-      font-size: 13px;
-      font-weight: 600;
-      color: var(--fg);
-      cursor: pointer;
-    }
+        .scenario-select {
+            background: var(--surface-color);
+            border: 1px solid var(--border-subtle);
+            color: var(--text-primary);
+            padding: 9px 14px;
+            border-radius: 30px;
+            font-size: 12px;
+            font-family: var(--font-main);
+            outline: none;
+            cursor: pointer;
+            backdrop-filter: blur(12px);
+        }
 
-    /* Kinetic Draggable Cards */
-    .card {
-      position: absolute;
-      background: white;
-      padding: 24px;
-      border-radius: 32px;
-      box-shadow: var(--shadow);
-      transition: transform 0.1s ease-out;
-      cursor: grab;
-      border: 1px solid rgba(0,0,0,0.04);
-    }
+        .btn-primary {
+            background: var(--text-primary);
+            color: var(--bg-color);
+            border: none;
+            padding: 9px 20px;
+            border-radius: 40px;
+            font-size: 12px;
+            font-weight: 600;
+            cursor: pointer;
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            transition: all 0.2s;
+        }
 
-    .card:active {
-      cursor: grabbing;
-    }
+        .btn-primary:hover {
+            opacity: 0.9;
+            transform: translateY(-1px);
+        }
 
-    .card-label {
-      display: inline-block;
-      padding: 4px 12px;
-      border-radius: 100px;
-      font-size: 10px;
-      font-weight: 600;
-      text-transform: uppercase;
-      letter-spacing: 0.05em;
-      margin-bottom: 14px;
-    }
+        .btn-secondary {
+            background: var(--card-bg);
+            color: var(--text-primary);
+            border: 1px solid var(--border-subtle);
+            padding: 9px 16px;
+            border-radius: 40px;
+            font-size: 12px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
 
-    .card h3 {
-      font-size: 18px;
-      font-weight: 600;
-      line-height: 1.3;
-      margin-bottom: 6px;
-    }
+        .btn-secondary:hover {
+            border-color: var(--border-active);
+            background: rgba(255,255,255,0.04);
+        }
 
-    .card p {
-      font-size: 12px;
-      color: #666;
-      line-height: 1.5;
-    }
+        /* Top 3 Summary Cards */
+        .dashboard-summary {
+            display: grid;
+            grid-template-columns: 1.4fr 1.3fr 1.3fr;
+            gap: 20px;
+        }
 
-    .stat {
-      margin-top: 14px;
-      font-size: 26px;
-      font-weight: 700;
-      display: flex;
-      align-items: center;
-      gap: 8px;
-      font-family: 'Inter', sans-serif;
-    }
+        .card {
+            background: var(--surface-color);
+            backdrop-filter: blur(20px);
+            border: 1px solid var(--border-subtle);
+            border-radius: var(--radius-lg);
+            padding: 26px 30px;
+            position: relative;
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+        }
 
-    .stat span {
-      font-size: 12px;
-      color: #10b981;
-      background: #ecfdf5;
-      padding: 2px 8px;
-      border-radius: 100px;
-      font-weight: 600;
-    }
+        .card::before {
+            content: '';
+            position: absolute;
+            top: 0; left: 0; right: 0; height: 1px;
+            background: linear-gradient(90deg, transparent, var(--border-active), transparent);
+        }
 
-    /* Fixed Positions for Watchdog Studio Cards */
-    #card-tasks {
-      top: 12%;
-      left: 7%;
-      width: 290px;
-      background: var(--sky);
-      transform: rotate(-3deg);
-      z-index: 25;
-    }
+        .card-label {
+            font-size: 10px;
+            text-transform: uppercase;
+            letter-spacing: 0.12em;
+            color: var(--text-secondary);
+            margin-bottom: 8px;
+            display: block;
+            font-family: var(--font-mono);
+        }
 
-    #card-sensors {
-      top: 14%;
-      right: 7%;
-      width: 310px;
-      background: var(--peach);
-      transform: rotate(2deg);
-      z-index: 24;
-    }
+        .card-value {
+            font-size: 34px;
+            font-weight: 300;
+            letter-spacing: -0.02em;
+            color: var(--text-primary);
+            display: flex;
+            align-items: baseline;
+            gap: 10px;
+        }
 
-    #card-worker {
-      bottom: 12%;
-      left: 9%;
-      width: 320px;
-      background: var(--mint);
-      transform: rotate(3deg);
-      z-index: 23;
-    }
+        .card-value span.badge {
+            font-size: 12px;
+            font-family: var(--font-mono);
+            color: var(--status-green);
+            background: rgba(168, 198, 159, 0.1);
+            padding: 2px 8px;
+            border-radius: 4px;
+            border: 1px solid rgba(168, 198, 159, 0.2);
+            font-weight: 500;
+        }
 
-    #card-arbiter {
-      bottom: 12%;
-      right: 8%;
-      width: 320px;
-      background: var(--lilac);
-      transform: rotate(-2deg);
-      z-index: 22;
-    }
+        .card-subtext {
+            font-size: 12px;
+            color: var(--text-muted);
+            margin-top: 6px;
+        }
 
-    #card-breaker {
-      top: 42%;
-      left: 3%;
-      width: 220px;
-      background: #ffffff;
-      transform: rotate(-1deg);
-      z-index: 21;
-    }
+        .progress-visual {
+            margin-top: 18px;
+            height: 28px;
+            background: rgba(0,0,0,0.3);
+            border-radius: var(--radius-sm);
+            position: relative;
+            border: 1px solid var(--border-subtle);
+            overflow: hidden;
+            display: flex;
+            align-items: center;
+            padding: 0 10px;
+        }
 
-    #card-tokens {
-      top: 44%;
-      right: 3%;
-      width: 220px;
-      background: #ffffff;
-      transform: rotate(2deg);
-      z-index: 20;
-    }
+        .progress-bar {
+            position: absolute;
+            top: 0; left: 0;
+            height: 100%;
+            background: linear-gradient(90deg, rgba(220, 214, 209, 0.1), rgba(220, 214, 209, 0.45));
+            transition: width 0.4s ease;
+        }
 
-    /* Internal Components inside Cards */
-    .checklist-box {
-      margin-top: 12px;
-      display: flex;
-      flex-direction: column;
-      gap: 6px;
-    }
+        .progress-text {
+            position: relative;
+            z-index: 2;
+            font-size: 10.5px;
+            font-family: var(--font-mono);
+            color: var(--text-primary);
+        }
 
-    .check-item {
-      display: flex;
-      align-items: center;
-      gap: 8px;
-      font-size: 11px;
-      padding: 6px 10px;
-      background: rgba(255, 255, 255, 0.7);
-      border-radius: 12px;
-      font-weight: 500;
-      color: #333;
-      transition: all 0.2s;
-    }
+        /* Crosshair Corner Markers */
+        .crosshair {
+            position: absolute;
+            width: 11px;
+            height: 11px;
+            pointer-events: none;
+        }
 
-    .check-item.done {
-      background: #ffffff;
-      color: #10b981;
-      text-decoration: line-through;
-    }
+        .crosshair::before, .crosshair::after {
+            content: '';
+            position: absolute;
+            background: var(--text-muted);
+        }
 
-    .check-item.in-progress {
-      background: #ffffff;
-      color: #d97706;
-      border: 1px dashed #d97706;
-    }
+        .crosshair::before { top: 5px; left: 0; width: 11px; height: 1px; }
+        .crosshair::after { left: 5px; top: 0; width: 1px; height: 11px; }
 
-    .code-console {
-      margin-top: 10px;
-      background: #ffffff;
-      padding: 10px;
-      border-radius: 14px;
-      font-family: 'JetBrains Mono', monospace;
-      font-size: 10.5px;
-      color: #444;
-      line-height: 1.4;
-      max-height: 100px;
-      overflow-y: auto;
-      border: 1px solid rgba(0,0,0,0.03);
-    }
+        /* Workspace Grid: Worker Terminal vs Arbiter Decision Center */
+        .workspace-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+        }
 
-    .chat-bubble {
-      margin-top: 10px;
-      background: #ffffff;
-      padding: 12px;
-      border-radius: 16px;
-      font-size: 11.5px;
-      line-height: 1.5;
-      color: #333;
-      box-shadow: 0 4px 12px rgba(0,0,0,0.03);
-    }
+        .workspace-panel {
+            background: var(--surface-color);
+            backdrop-filter: blur(20px);
+            border: 1px solid var(--border-subtle);
+            border-radius: var(--radius-lg);
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+            position: relative;
+        }
 
-    .decision-badge {
-      display: inline-flex;
-      align-items: center;
-      gap: 4px;
-      padding: 4px 10px;
-      border-radius: 100px;
-      font-size: 11px;
-      font-weight: 700;
-      margin-top: 8px;
-    }
+        .workspace-panel::before {
+            content: '';
+            position: absolute;
+            top: 0; left: 0; right: 0; height: 1px;
+            background: linear-gradient(90deg, transparent, var(--border-active), transparent);
+        }
 
-    .badge-pass { background: #10b981; color: white; }
-    .badge-retry { background: #f59e0b; color: white; }
-    .badge-blocked { background: #ef4444; color: white; }
+        .panel-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 18px 24px;
+            border-bottom: 1px solid var(--border-subtle);
+        }
 
-    /* Growth curve SVG */
-    .growth-curve {
-      width: 100%;
-      height: 32px;
-      margin-top: 8px;
-    }
+        .panel-title {
+            font-size: 13px;
+            font-weight: 500;
+            letter-spacing: 0.05em;
+            text-transform: uppercase;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
 
-    /* Floating background dots */
-    .dot {
-      position: absolute;
-      width: 8px;
-      height: 8px;
-      border-radius: 50%;
-      background: #eaeaea;
-      z-index: 1;
-    }
+        .status-pill {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            padding: 4px 10px;
+            background: var(--card-bg);
+            border-radius: 20px;
+            font-size: 11px;
+            border: 1px solid var(--border-subtle);
+            font-family: var(--font-mono);
+        }
 
-    /* Handwritten Gaegu annotations */
-    .annotation {
-      position: absolute;
-      font-family: 'Gaegu', cursive;
-      font-size: 20px;
-      color: #888;
-      pointer-events: none;
-      z-index: 5;
-    }
+        .status-dot {
+            width: 6px;
+            height: 6px;
+            border-radius: 50%;
+            background: var(--text-secondary);
+            box-shadow: 0 0 8px var(--text-secondary);
+        }
 
-    /* Floating Bottom Action CTA */
-    .footer-cta {
-      position: fixed;
-      bottom: 36px;
-      left: 50%;
-      transform: translateX(-50%);
-      z-index: 1000;
-      display: flex;
-      align-items: center;
-      gap: 12px;
-    }
+        .status-dot.active-green {
+            background: var(--status-green);
+            box-shadow: 0 0 8px var(--status-green);
+        }
 
-    .btn-primary {
-      background: var(--fg);
-      color: white;
-      padding: 14px 28px;
-      border-radius: 100px;
-      text-decoration: none;
-      font-weight: 600;
-      font-size: 14px;
-      display: flex;
-      align-items: center;
-      gap: 12px;
-      cursor: pointer;
-      border: none;
-      box-shadow: 0 10px 25px rgba(0,0,0,0.12);
-      transition: all 0.3s cubic-bezier(0.23, 1, 0.32, 1);
-    }
+        .status-dot.active-amber {
+            background: var(--status-amber);
+            box-shadow: 0 0 8px var(--status-amber);
+        }
 
-    .btn-primary:hover {
-      transform: translateY(-3px);
-      box-shadow: 0 15px 30px rgba(0,0,0,0.18);
-      background: #000;
-    }
+        .status-dot.active-red {
+            background: var(--status-red);
+            box-shadow: 0 0 8px var(--status-red);
+        }
 
-    .btn-secondary {
-      background: white;
-      color: var(--fg);
-      padding: 14px 22px;
-      border-radius: 100px;
-      text-decoration: none;
-      font-weight: 600;
-      font-size: 14px;
-      display: flex;
-      align-items: center;
-      gap: 8px;
-      cursor: pointer;
-      border: 1px solid rgba(0,0,0,0.08);
-      box-shadow: 0 4px 16px rgba(0,0,0,0.05);
-      transition: all 0.3s;
-    }
+        .panel-body {
+            padding: 24px;
+            display: flex;
+            flex-direction: column;
+            gap: 16px;
+            flex: 1;
+        }
 
-    .btn-secondary:hover {
-      transform: translateY(-2px);
-      background: #fcfcfc;
-    }
+        /* Terminal Console & Bubbles */
+        .terminal-box {
+            background: rgba(14, 13, 12, 0.85);
+            border: 1px solid var(--border-subtle);
+            border-radius: var(--radius-sm);
+            padding: 16px;
+            font-family: var(--font-mono);
+            font-size: 11.5px;
+            line-height: 1.6;
+            color: var(--text-primary);
+            min-height: 180px;
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+            overflow-y: auto;
+        }
 
-    .arrow-circle {
-      width: 22px;
-      height: 22px;
-      background: rgba(255,255,255,0.2);
-      border-radius: 50%;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-    }
-  </style>
+        .terminal-prompt {
+            color: var(--text-secondary);
+        }
+
+        .terminal-worker-text {
+            color: #E2DFDA;
+            padding: 8px 12px;
+            background: rgba(255,255,255,0.03);
+            border-left: 2px solid var(--text-secondary);
+            border-radius: 0 var(--radius-sm) var(--radius-sm) 0;
+        }
+
+        .injection-callout {
+            background: rgba(198, 193, 159, 0.08);
+            border: 1px solid rgba(198, 193, 159, 0.2);
+            border-radius: var(--radius-sm);
+            padding: 14px 16px;
+            font-family: var(--font-mono);
+            font-size: 11.5px;
+            color: #EDE8D0;
+            line-height: 1.5;
+        }
+
+        /* Tech Specs Grid */
+        .tech-specs {
+            display: flex;
+            gap: 24px;
+            padding-top: 12px;
+            border-top: 1px solid var(--border-subtle);
+        }
+
+        .spec-item {
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+        }
+
+        .spec-label {
+            font-size: 9px;
+            color: var(--text-muted);
+            text-transform: uppercase;
+            letter-spacing: 0.08em;
+            font-family: var(--font-mono);
+        }
+
+        .spec-value {
+            font-family: var(--font-mono);
+            font-size: 11.5px;
+            color: var(--text-primary);
+        }
+
+        /* Reporting Table Hub */
+        .reporting-section {
+            background: var(--surface-color);
+            backdrop-filter: blur(20px);
+            border: 1px solid var(--border-subtle);
+            border-radius: var(--radius-lg);
+            padding: 6px;
+            position: relative;
+        }
+
+        .reporting-section::before {
+            content: '';
+            position: absolute;
+            top: 0; left: 0; right: 0; height: 1px;
+            background: linear-gradient(90deg, transparent, var(--border-active), transparent);
+        }
+
+        .table-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 20px 24px 16px 24px;
+        }
+
+        .table-header h2 {
+            font-size: 14px;
+            font-weight: 500;
+            letter-spacing: 0.05em;
+            text-transform: uppercase;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 12.5px;
+        }
+
+        th {
+            text-align: left;
+            padding: 14px 24px;
+            font-weight: 500;
+            color: var(--text-secondary);
+            text-transform: uppercase;
+            letter-spacing: 0.08em;
+            font-size: 10px;
+            border-bottom: 1px solid var(--border-subtle);
+            font-family: var(--font-mono);
+        }
+
+        td {
+            padding: 18px 24px;
+            border-bottom: 1px solid var(--border-subtle);
+            color: var(--text-primary);
+        }
+
+        tr:last-child td {
+            border-bottom: none;
+        }
+
+        tr:hover td {
+            background: rgba(255,255,255,0.02);
+        }
+
+        .budget-bar-container {
+            width: 120px;
+            height: 4px;
+            background: rgba(255,255,255,0.06);
+            border-radius: 2px;
+            margin-top: 6px;
+        }
+
+        .budget-bar {
+            height: 100%;
+            background: var(--text-secondary);
+            border-radius: 2px;
+            transition: width 0.3s;
+        }
+
+        /* Footer */
+        footer {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 16px 4px;
+            color: var(--text-muted);
+            font-size: 10.5px;
+            letter-spacing: 0.1em;
+            text-transform: uppercase;
+            font-family: var(--font-mono);
+        }
+
+        /* Scrollbar */
+        ::-webkit-scrollbar { width: 5px; height: 5px; }
+        ::-webkit-scrollbar-track { background: transparent; }
+        ::-webkit-scrollbar-thumb { background: rgba(255, 255, 255, 0.1); border-radius: 4px; }
+        ::-webkit-scrollbar-thumb:hover { background: rgba(255, 255, 255, 0.2); }
+    </style>
 </head>
 <body>
 
-  <!-- Top Navigation -->
-  <nav>
-    <a href="#" class="logo">
-      Watchdog.
-      <span class="tag">Dual-Agent AI OS</span>
-    </a>
-    <div class="nav-links">
-      <a href="https://github.com/jjy0230/ai-supervisor-watchdog" target="_blank">GitHub</a>
-      <a href="https://github.com/jjy0230/ai-supervisor-watchdog#readme" target="_blank">Architecture Spec</a>
-      <a href="#" id="navResetBtn">Reset Studio</a>
+    <div class="app-shell">
+        <!-- Header -->
+        <header>
+            <div class="brand">
+                <div class="brand-icon"></div>
+                <span>Watchdog.OS</span>
+                <span class="brand-sub">// AI SUPERVISOR TELEMETRY</span>
+            </div>
+            
+            <nav>
+                <button class="active">Supervisor Hub</button>
+                <button id="navSpecBtn">tasks.md Spec</button>
+                <button id="navSensorsBtn">Code Sensors</button>
+                <button id="navBreakerBtn">Circuit Breaker</button>
+                <button id="navDocsBtn">Docs & Architecture</button>
+            </nav>
+
+            <div class="user-actions">
+                <select id="scenarioSelector" class="scenario-select">
+                    <option value="happy">Scenario 1: Happy Path (Self-Healing Flow)</option>
+                    <option value="hallucination">Scenario 2: Hallucination Trap (Empty Diff Caught)</option>
+                    <option value="test_failure">Scenario 3: Sensor Regression (Pytest Red-Light)</option>
+                    <option value="circuit_breaker">Scenario 4: Safety Brake (3-Retry Loop Tripped)</option>
+                </select>
+                <button class="btn-primary" id="playBtn">
+                    <span id="playBtnText">▶ Run Auto-Audit</span>
+                </button>
+                <button class="btn-secondary" id="stepBtn">⏭ Step</button>
+                <button class="btn-secondary" id="resetBtn" title="Reset State">↺</button>
+            </div>
+        </header>
+
+        <!-- Top Telemetry Summary Metric Cards -->
+        <section class="dashboard-summary">
+            <!-- Card 1: Token Economics -->
+            <div class="card">
+                <span class="card-label">Zero-Token Monitoring Throughput</span>
+                <div class="card-value">
+                    <span id="tokenSavingsPercent">96.4%</span>
+                    <span class="badge">0-Tok Local Hook</span>
+                </div>
+                <div class="card-subtext" id="tokenSavingsSub">Watching: 0 Tokens | Arbiter: <span id="arbiterTokCount" style="color: var(--text-primary); font-family: var(--font-mono);">0</span> Tokens</div>
+                <div class="progress-visual">
+                    <div class="progress-bar" id="tokenProgressBar" style="width: 96%;"></div>
+                    <span class="progress-text">Vision Screenshot Eliminated (100% Native UIA/PTY)</span>
+                </div>
+                <div class="crosshair" style="top: 20px; right: 20px;"></div>
+            </div>
+
+            <!-- Card 2: Checklist Progress -->
+            <div class="card">
+                <span class="card-label">tasks.md Milestone Execution</span>
+                <div class="card-value" id="milestoneValue">
+                    0 / 4 <span style="font-size: 16px; color: var(--text-secondary); font-weight: 400;">(0%)</span>
+                </div>
+                <div class="card-subtext" id="currentTargetText">Current: 1. 编写用户数据模型 User</div>
+                <div class="progress-visual">
+                    <div class="progress-bar" id="milestoneProgressBar" style="width: 0%;"></div>
+                    <span class="progress-text" id="milestoneProgressText">Pending Verification</span>
+                </div>
+                <div class="crosshair" style="bottom: 20px; left: 20px;"></div>
+            </div>
+
+            <!-- Card 3: Circuit Breaker -->
+            <div class="card">
+                <span class="card-label">Safety Guard & Anti-Sycophancy</span>
+                <div class="card-value" id="breakerValue">
+                    0 / 3
+                    <span class="badge" id="breakerStatusBadge" style="color: var(--status-green); background: rgba(168, 198, 159, 0.1);">HEALTHY (CLOSED)</span>
+                </div>
+                <div class="card-subtext" id="breakerSubText">Loop Similarity: 0.0% | Max retries: 3</div>
+                <div class="progress-visual">
+                    <div class="progress-bar" id="breakerProgressBar" style="width: 0%; background: var(--status-red);"></div>
+                    <span class="progress-text" id="breakerProgressText">No Stagnation Loop Detected</span>
+                </div>
+                <div class="crosshair" style="bottom: 20px; right: 20px;"></div>
+            </div>
+        </section>
+
+        <!-- Center Workspace: Worker Terminal vs Arbiter Decision Center -->
+        <section class="workspace-grid">
+            <!-- Left: Target Worker AI Terminal -->
+            <div class="workspace-panel">
+                <div class="panel-header">
+                    <div class="panel-title">
+                        <span>Target Worker Session</span>
+                        <span style="font-size: 11px; color: var(--text-muted); font-family: var(--font-mono);">[CURSOR / CLI PID: 4912]</span>
+                    </div>
+                    <div class="status-pill">
+                        <div class="status-dot active-green" id="workerStatusDot"></div>
+                        <span id="workerStatusText">MONITORING (IDLE)</span>
+                    </div>
+                </div>
+
+                <div class="panel-body">
+                    <div class="terminal-box" id="workerTerminal">
+                        <div class="terminal-prompt">$ supervisor-watchdog --listen --target "Cursor"</div>
+                        <div style="color: var(--text-muted);">[Daemon] Hooked into Windows UI Automation 3.0 input handles.</div>
+                        <div style="color: var(--text-muted);">[Daemon] Stagnation sniffer active. Awaiting worker pause...</div>
+                        <div class="terminal-worker-text" id="workerReplyText">
+                            "System initialized. Ready to execute tasks according to tasks.md."
+                        </div>
+                    </div>
+
+                    <div class="tech-specs">
+                        <div class="spec-item">
+                            <span class="spec-label">DRIVER TYPE</span>
+                            <span class="spec-value" id="specDriver">Win32 UIA 3.0</span>
+                        </div>
+                        <div class="spec-item">
+                            <span class="spec-label">POLL FREQUENCY</span>
+                            <span class="spec-value">2.0s / 0 Tok</span>
+                        </div>
+                        <div class="spec-item">
+                            <span class="spec-label">INSPECTION EVENT</span>
+                            <span class="spec-value" id="specEvent">STAGNATION_DETECTED</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Right: Supervisor Arbiter Decision Brain -->
+            <div class="workspace-panel">
+                <div class="panel-header">
+                    <div class="panel-title">
+                        <span>Asymmetric Arbiter Brain</span>
+                        <span style="font-size: 11px; color: var(--text-muted); font-family: var(--font-mono);">[CLAUDE 3.5 SONNET]</span>
+                    </div>
+                    <div class="status-pill" id="arbiterDecisionPill">
+                        <div class="status-dot active-green" id="arbiterStatusDot"></div>
+                        <span id="arbiterDecisionText">AUDIT READY</span>
+                    </div>
+                </div>
+
+                <div class="panel-body">
+                    <div style="display: flex; flex-direction: column; gap: 8px;">
+                        <span class="spec-label">OBJECTIVE & EVIDENCE COMPARISON</span>
+                        <div class="terminal-box" style="min-height: 90px; color: #DCD6D1;" id="arbiterReasonBox">
+                            System stands by. Click [▶ Run Auto-Audit] or [⏭ Step] to trigger verification cycles against physical sensors.
+                        </div>
+                    </div>
+
+                    <div style="display: flex; flex-direction: column; gap: 8px;">
+                        <span class="spec-label">GENERATED DIRECTIVE INJECTION</span>
+                        <div class="injection-callout" id="injectionDirectiveBox">
+                            [Awaiting Arbiter Generation]
+                        </div>
+                    </div>
+
+                    <div class="tech-specs">
+                        <div class="spec-item">
+                            <span class="spec-label">ARBITER SPEC</span>
+                            <span class="spec-value">Contract-First / TDD</span>
+                        </div>
+                        <div class="spec-item">
+                            <span class="spec-label">REPO SKELETON</span>
+                            <span class="spec-value">AST PageRank (&lt;1000 Tok)</span>
+                        </div>
+                        <div class="spec-item">
+                            <span class="spec-label">LATENCY</span>
+                            <span class="spec-value" id="arbiterLatency">~380ms</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Lower Section: Codebase Physical Sensors & Checklist Reporting Hub -->
+        <section class="reporting-section">
+            <div class="table-header">
+                <h2>Sensor & Task Verification Hub</h2>
+                <div style="display: flex; gap: 8px;">
+                    <button style="background: transparent; border: 1px solid var(--border-subtle); color: var(--text-secondary); padding: 6px 12px; border-radius: 4px; font-size: 11px; font-family: var(--font-mono);">Physical Sensors (0-Tok)</button>
+                    <button style="background: transparent; border: 1px solid var(--border-subtle); color: var(--text-secondary); padding: 6px 12px; border-radius: 4px; font-size: 11px; font-family: var(--font-mono);" id="viewTasksSourceBtn">Source: tasks.md</button>
+                </div>
+            </div>
+            <table>
+                <thead>
+                    <tr>
+                        <th>Verification Dimension</th>
+                        <th>State / Exit Code</th>
+                        <th>Milestone Progress</th>
+                        <th>Physical Metric Output</th>
+                        <th>Ground-Truth Telemetry</th>
+                    </tr>
+                </thead>
+                <tbody id="telemetryTableBody">
+                    <!-- Row 1: Task Checklist -->
+                    <tr>
+                        <td>
+                            <div style="font-weight: 500;" id="row1Title">1. User 数据模型 (User.py)</div>
+                            <div style="font-size: 11px; color: var(--text-muted);">Spec-Driven Checklist Item</div>
+                        </td>
+                        <td>
+                            <div class="status-pill" id="row1StatusPill">
+                                <div class="status-dot active-amber" id="row1Dot"></div>
+                                <span id="row1Status">IN PROGRESS</span>
+                            </div>
+                        </td>
+                        <td>
+                            <div style="font-size: 11px; margin-bottom: 4px; font-family: var(--font-mono);" id="row1ProgressText">0% Complete</div>
+                            <div class="budget-bar-container">
+                                <div class="budget-bar" id="row1Bar" style="width: 0%;"></div>
+                            </div>
+                        </td>
+                        <td>
+                            <div style="font-family: var(--font-mono); font-size: 11.5px;" id="row1Metric">Token Cost: 0</div>
+                        </td>
+                        <td>
+                            <div class="tech-specs" style="border: none; padding: 0;">
+                                <div class="spec-item">
+                                    <span class="spec-label">TYPE</span>
+                                    <span class="spec-value">Core Domain</span>
+                                </div>
+                                <div class="spec-item">
+                                    <span class="spec-label">VERIFIED</span>
+                                    <span class="spec-value" id="row1Verified">PENDING</span>
+                                </div>
+                            </div>
+                        </td>
+                    </tr>
+
+                    <!-- Row 2: Git Diff Physical Sensor -->
+                    <tr>
+                        <td>
+                            <div style="font-weight: 500;">Git Working Tree Sensor</div>
+                            <div style="font-size: 11px; color: var(--text-muted);">git diff --stat & status</div>
+                        </td>
+                        <td>
+                            <div class="status-pill">
+                                <div class="status-dot" id="row2Dot"></div>
+                                <span id="row2Status">NO CHANGES</span>
+                            </div>
+                        </td>
+                        <td>
+                            <div style="font-size: 11px; margin-bottom: 4px; font-family: var(--font-mono);" id="row2ProgressText">Diff Lines: 0</div>
+                            <div class="budget-bar-container">
+                                <div class="budget-bar" id="row2Bar" style="width: 0%;"></div>
+                            </div>
+                        </td>
+                        <td>
+                            <div style="font-family: var(--font-mono); font-size: 11.5px;" id="row2Metric">clean tree</div>
+                        </td>
+                        <td>
+                            <div class="tech-specs" style="border: none; padding: 0;">
+                                <div class="spec-item">
+                                    <span class="spec-label">HOOK</span>
+                                    <span class="spec-value">Local FS</span>
+                                </div>
+                                <div class="spec-item">
+                                    <span class="spec-label">STAGED</span>
+                                    <span class="spec-value" id="row2Staged">0 files</span>
+                                </div>
+                            </div>
+                        </td>
+                    </tr>
+
+                    <!-- Row 3: Pytest & Linter Sensor -->
+                    <tr>
+                        <td>
+                            <div style="font-weight: 500;">Pytest / Linter Sensor</div>
+                            <div style="font-size: 11px; color: var(--text-muted);">pytest -q exit code probe</div>
+                        </td>
+                        <td>
+                            <div class="status-pill">
+                                <div class="status-dot" id="row3Dot"></div>
+                                <span id="row3Status">STANDBY</span>
+                            </div>
+                        </td>
+                        <td>
+                            <div style="font-size: 11px; margin-bottom: 4px; font-family: var(--font-mono);" id="row3ProgressText">Tests Passed: 0/0</div>
+                            <div class="budget-bar-container">
+                                <div class="budget-bar" id="row3Bar" style="width: 0%;"></div>
+                            </div>
+                        </td>
+                        <td>
+                            <div style="font-family: var(--font-mono); font-size: 11.5px;" id="row3Metric">Exit Code: ---</div>
+                        </td>
+                        <td>
+                            <div class="tech-specs" style="border: none; padding: 0;">
+                                <div class="spec-item">
+                                    <span class="spec-label">SENSOR</span>
+                                    <span class="spec-value">pytest</span>
+                                </div>
+                                <div class="spec-item">
+                                    <span class="spec-label">ASSERTION</span>
+                                    <span class="spec-value" id="row3Assertion">READY</span>
+                                </div>
+                            </div>
+                        </td>
+                    </tr>
+
+                    <!-- Row 4: AST RepoMap Sensor -->
+                    <tr>
+                        <td>
+                            <div style="font-weight: 500;">AST RepoMap Topology</div>
+                            <div style="font-size: 11px; color: var(--text-muted);">tree-sitter / grep-ast skeleton</div>
+                        </td>
+                        <td>
+                            <div class="status-pill">
+                                <div class="status-dot active-green"></div>
+                                <span>CACHED (0.8s)</span>
+                            </div>
+                        </td>
+                        <td>
+                            <div style="font-size: 11px; margin-bottom: 4px; font-family: var(--font-mono);">Tokens: 380 / 1024</div>
+                            <div class="budget-bar-container">
+                                <div class="budget-bar" style="width: 37%;"></div>
+                            </div>
+                        </td>
+                        <td>
+                            <div style="font-family: var(--font-mono); font-size: 11.5px;">6 Classes, 14 Funcs</div>
+                        </td>
+                        <td>
+                            <div class="tech-specs" style="border: none; padding: 0;">
+                                <div class="spec-item">
+                                    <span class="spec-label">COMPRESSION</span>
+                                    <span class="spec-value">92%</span>
+                                </div>
+                                <div class="spec-item">
+                                    <span class="spec-label">MAP ENGINE</span>
+                                    <span class="spec-value">PageRank</span>
+                                </div>
+                            </div>
+                        </td>
+                    </tr>
+                </tbody>
+            </table>
+        </section>
+
+        <!-- Footer -->
+        <footer>
+            <div>System: Watchdog.OS v0.1.0 // DAEMON RUNNING</div>
+            <div>Local Polling: 0 Tokens // UIA 3.0 Active</div>
+            <div style="display: flex; gap: 24px;">
+                <span>Arbiter: Claude 3.5 Sonnet</span>
+                <span>Security: Spec-Driven Gate</span>
+                <a href="https://github.com/jjy0230/ai-supervisor-watchdog" target="_blank" style="color: var(--text-secondary); text-decoration: none;">GitHub Repo ↗</a>
+            </div>
+        </footer>
     </div>
-    <div style="width: 80px;"></div>
-  </nav>
 
-  <!-- Interactive Kinetic Canvas -->
-  <div class="canvas" id="canvas">
+    <!-- Interactive Script -->
+    <script>
+        const scenarios = {
+            happy: [
+                {
+                    milestone: "1 / 4 (25%)",
+                    progressPercent: 25,
+                    currentTask: "1. 编写用户数据模型 User (username, email, hash)",
+                    workerReply: "我已编写完成 User 模型，字段包括 username, email, password_hash，包含密码验证原型。",
+                    gitDiff: "M  src/models/user.py (+34 lines)",
+                    gitStaged: "1 file (+34)",
+                    pytestText: "test_user.py::test_create PASSED [100%]",
+                    pytestPassed: true,
+                    decision: "PASS",
+                    reason: "物理事实核验：Git Diff 存在有效变更，User 模型定义完备且基础单元测试全绿。",
+                    injection: "很好，第 1 阶段目标验证通过。接下来请执行任务 2：封装密码加密工具 security.py。",
+                    tokens: 410,
+                    retries: "0 / 3",
+                    similarity: "0.0%",
+                    row1Verified: "PASS"
+                },
+                {
+                    milestone: "2 / 4 (50%)",
+                    progressPercent: 50,
+                    currentTask: "2. 编写密码加密与验证工具函数",
+                    workerReply: "已编写完成 password_helper.py，使用 bcrypt 进行安全哈希与加盐比对。",
+                    gitDiff: "M  src/utils/security.py (+28 lines)",
+                    gitStaged: "2 files (+62)",
+                    pytestText: "test_security.py::test_hash PASSED [100%]",
+                    pytestPassed: true,
+                    decision: "PASS",
+                    reason: "物理事实核验：密码加密逻辑符合规范，无报错。",
+                    injection: "第 2 阶段目标通过。接下来请执行任务 3：编写注册与登录逻辑单元测试。",
+                    tokens: 395,
+                    retries: "0 / 3",
+                    similarity: "0.0%",
+                    row1Verified: "PASS"
+                },
+                {
+                    milestone: "3 / 4 (75%)",
+                    progressPercent: 75,
+                    currentTask: "3. 编写注册与登录逻辑单元测试",
+                    workerReply: "测试套件已覆盖正常登录、密码错误以及邮箱重复注册等所有边界用例。",
+                    gitDiff: "M  tests/test_auth.py (+65 lines)",
+                    gitStaged: "3 files (+127)",
+                    pytestText: "tests/test_auth.py::test_auth_suite PASSED (4 tests passed)",
+                    pytestPassed: true,
+                    decision: "PASS",
+                    reason: "测试套件扩充完成，断言覆盖完整。",
+                    injection: "第 3 阶段通过。请执行任务 4：全局回归运行全部单元测试。",
+                    tokens: 420,
+                    retries: "0 / 3",
+                    similarity: "0.0%",
+                    row1Verified: "PASS"
+                },
+                {
+                    milestone: "4 / 4 (100%)",
+                    progressPercent: 100,
+                    currentTask: "4. 运行并通过全部单元测试 (全部完成)",
+                    workerReply: "已执行 pytest -q，所有 7 个用例无任何回归报错，全部顺利通过！",
+                    gitDiff: "M  tasks.md (+2, -2)",
+                    gitStaged: "All clean",
+                    pytestText: "======= 7 passed in 0.14s =======",
+                    pytestPassed: true,
+                    decision: "PASS",
+                    reason: "全量验证通过，tasks.md 全部项目自动化交付完毕！",
+                    injection: "🎉 恭喜！当前 tasks.md 清单中所有项目已全部自动化验收交付完毕！",
+                    tokens: 360,
+                    retries: "0 / 3",
+                    similarity: "0.0%",
+                    row1Verified: "ALL DONE"
+                }
+            ],
+            hallucination: [
+                {
+                    milestone: "0 / 4 (0%)",
+                    progressPercent: 0,
+                    currentTask: "1. 编写用户数据模型 User",
+                    workerReply: "我已经全部重构并写好了完整的用户数据模型，包含完善的验证，你可以直接调用了！",
+                    gitDiff: "No changes staged. (Git Diff 为空)",
+                    gitStaged: "0 files",
+                    pytestText: "ERROR: src/models/user.py not found.",
+                    pytestPassed: false,
+                    decision: "RETRY",
+                    reason: "【幻觉拦截】Worker 自称完成，但工作区无任何物理修改，且找不到模型文件！",
+                    injection: "你声称已完成，但当前工作区 Git 变动为空且找不到模型文件。请立即落盘编写！",
+                    tokens: 430,
+                    retries: "1 / 3",
+                    similarity: "10.0%",
+                    row1Verified: "REJECTED"
+                },
+                {
+                    milestone: "1 / 4 (25%)",
+                    progressPercent: 25,
+                    currentTask: "1. 编写用户数据模型 User",
+                    workerReply: "非常抱歉刚才遗漏了创建文件，现在已将 User 模型落盘写入文件并跑通测试。",
+                    gitDiff: "A  src/models/user.py (+35 lines)",
+                    gitStaged: "1 file (+35)",
+                    pytestText: "test_user.py::test_create PASSED [100%]",
+                    pytestPassed: true,
+                    decision: "PASS",
+                    reason: "Worker 在纠偏后补齐物理文件，测试通过，允许放行进入下一任务。",
+                    injection: "验收通过，推进到下一子任务。",
+                    tokens: 380,
+                    retries: "0 / 3",
+                    similarity: "0.0%",
+                    row1Verified: "PASS"
+                }
+            ],
+            test_failure: [
+                {
+                    milestone: "1 / 4 (25%)",
+                    progressPercent: 25,
+                    currentTask: "2. 编写密码加密与验证工具函数",
+                    workerReply: "代码编写完毕，我精简了入参转码逻辑以提升性能。",
+                    gitDiff: "M  src/utils/security.py (+15, -8 lines)",
+                    gitStaged: "1 file",
+                    pytestText: "FAILED: TypeError: expected bytes, got str in verify_password()",
+                    pytestPassed: false,
+                    decision: "RETRY",
+                    reason: "【测试红灯】修改破坏了现有测试：TypeError: expected bytes, got str。未通过物理验收。",
+                    injection: "测试报错：expected bytes, got str。请修复 verify_password 函数中的入参类型转码问题！",
+                    tokens: 460,
+                    retries: "1 / 3",
+                    similarity: "15.0%",
+                    row1Verified: "REJECTED"
+                },
+                {
+                    milestone: "2 / 4 (50%)",
+                    progressPercent: 50,
+                    currentTask: "2. 编写密码加密与验证工具函数",
+                    workerReply: "已将字符串编码为 utf-8 字节流，类型报错已修复，测试通过。",
+                    gitDiff: "M  src/utils/security.py (+4, -2 lines)",
+                    gitStaged: "1 file",
+                    pytestText: "tests/test_security.py::test_verify_password PASSED [100%]",
+                    pytestPassed: true,
+                    decision: "PASS",
+                    reason: "物理测试已全绿，Bug 被有效消除。",
+                    injection: "测试通过，进入下一阶段。",
+                    tokens: 390,
+                    retries: "0 / 3",
+                    similarity: "0.0%",
+                    row1Verified: "PASS"
+                }
+            ],
+            circuit_breaker: [
+                {
+                    milestone: "0 / 4 (0%)",
+                    progressPercent: 0,
+                    currentTask: "1. 编写用户数据模型 User",
+                    workerReply: "我遇到语法报错，我重新运行了一遍。",
+                    gitDiff: "No changes.",
+                    gitStaged: "0 files",
+                    pytestText: "FAILED: SyntaxError in config.py: invalid syntax",
+                    pytestPassed: false,
+                    decision: "RETRY",
+                    reason: "语法错误未修复。",
+                    injection: "请检查 config.py 第 12 行语法！",
+                    tokens: 350,
+                    retries: "1 / 3",
+                    similarity: "30.0%",
+                    row1Verified: "REJECTED"
+                },
+                {
+                    milestone: "0 / 4 (0%)",
+                    progressPercent: 0,
+                    currentTask: "1. 编写用户数据模型 User",
+                    workerReply: "我遇到语法报错，我重新运行了一遍。",
+                    gitDiff: "No changes.",
+                    gitStaged: "0 files",
+                    pytestText: "FAILED: SyntaxError in config.py: invalid syntax",
+                    pytestPassed: false,
+                    decision: "RETRY",
+                    reason: "检测到重复回复与未解决报错。",
+                    injection: "请修正第 12 行括号缺失！",
+                    tokens: 360,
+                    retries: "2 / 3",
+                    similarity: "95.0%",
+                    row1Verified: "REJECTED"
+                },
+                {
+                    milestone: "0 / 4 (0%)",
+                    progressPercent: 0,
+                    currentTask: "1. 编写用户数据模型 User",
+                    workerReply: "我遇到语法报错，我重新运行了一遍。",
+                    gitDiff: "No changes.",
+                    gitStaged: "0 files",
+                    pytestText: "FAILED: SyntaxError in config.py: invalid syntax",
+                    pytestPassed: false,
+                    decision: "BLOCKED",
+                    reason: "【熔断触发】文本相似度超 95% 且达 3 次重试上限，系统紧急挂起，防无限空转！",
+                    injection: "[SYSTEM_ALERT] 智能体陷入死锁，已停止自动注入，请人工开发者介入排查！",
+                    tokens: 370,
+                    retries: "3 / 3",
+                    similarity: "98.0%",
+                    tripped: true,
+                    row1Verified: "TRIPPED"
+                }
+            ]
+        };
 
-    <!-- Center Hero -->
-    <div class="hero">
-      <h1>never babysit<br>your coding agent.</h1>
-      <div class="scenario-pill">
-        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="11" cy="11" r="8"></circle><path d="m21 21-4.3-4.3"></path></svg>
-        <span>Scenario:</span>
-        <select id="scenarioSelect">
-          <option value="happy">1. Happy Path — Self-Healing Progression</option>
-          <option value="hallucination">2. Hallucination Trap — Empty Git Diff</option>
-          <option value="test_failure">3. Sensor Alert — Pytest Regression Fix</option>
-          <option value="circuit_breaker">4. Circuit Breaker — Loop Detection Halt</option>
-        </select>
-      </div>
-    </div>
+        // State Store
+        let currentScenario = 'happy';
+        let stepIdx = 0;
+        let isRunning = false;
+        let playInterval = null;
+        let totalTokens = 0;
 
-    <!-- CARD 1: Tasks Checklist (Sky) -->
-    <div class="card" id="card-tasks">
-      <div class="card-label" style="background: #bae6fd; color: #0284c7;">Spec Engine</div>
-      <h3>tasks.md Checklist</h3>
-      <p>Zero-token human intent state tracker.</p>
-      <div class="checklist-box" id="tasksList">
-        <div class="check-item in-progress" id="t-0">⚡ 1. User 数据模型编写</div>
-        <div class="check-item" id="t-1">○ 2. 密码加密工具封装</div>
-        <div class="check-item" id="t-2">○ 3. 登录与注册测试编写</div>
-        <div class="check-item" id="t-3">○ 4. 全局测试回归验收</div>
-      </div>
-    </div>
+        // DOM elements
+        const elScenarioSelect = document.getElementById('scenarioSelector');
+        const elPlayBtn = document.getElementById('playBtn');
+        const elPlayBtnText = document.getElementById('playBtnText');
+        const elStepBtn = document.getElementById('stepBtn');
+        const elResetBtn = document.getElementById('resetBtn');
 
-    <!-- CARD 2: Physical Sensors (Peach) -->
-    <div class="card" id="card-sensors">
-      <div class="card-label" style="background: #fed7aa; color: #ea580c;">0-Token Sensors</div>
-      <h3>Codebase Reality</h3>
-      <p>Git Diff & pytest execution outputs.</p>
-      <div class="code-console" id="sensorOutput">
-[git diff] No changes staged.
-[pytest] Waiting for invocation...
-      </div>
-    </div>
+        const elMilestoneVal = document.getElementById('milestoneValue');
+        const elMilestoneBar = document.getElementById('milestoneProgressBar');
+        const elCurrentTarget = document.getElementById('currentTargetText');
+        const elMilestoneProgressText = document.getElementById('milestoneProgressText');
 
-    <!-- CARD 3: Worker AI Simulator (Mint) -->
-    <div class="card" id="card-worker">
-      <div class="card-label" style="background: #bbf7d0; color: #16a34a;">Worker AI</div>
-      <h3>Cursor / CLI Session</h3>
-      <p id="workerStateText">Monitoring for pause or stalls...</p>
-      <div class="chat-bubble" id="workerChatBubble">
-        "Waiting for supervisor instruction..."
-      </div>
-    </div>
+        const elWorkerReply = document.getElementById('workerReplyText');
+        const elWorkerDot = document.getElementById('workerStatusDot');
+        const elWorkerStatusText = document.getElementById('workerStatusText');
 
-    <!-- CARD 4: Arbiter Decision Brain (Lilac) -->
-    <div class="card" id="card-arbiter">
-      <div class="card-label" style="background: #e9d5ff; color: #9333ea;">Arbiter Brain</div>
-      <h3>Claude 3.5 Asymmetric Audit</h3>
-      <p id="arbiterReason">Ground truth comparison ready.</p>
-      <div>
-        <span class="decision-badge badge-pass" id="arbiterBadge">READY</span>
-      </div>
-      <div class="code-console" id="arbiterPrompt" style="margin-top: 8px; font-size: 10px;">
-Injection: Click [Auto Play] or [Next Step] below.
-      </div>
-    </div>
+        const elArbiterReason = document.getElementById('arbiterReasonBox');
+        const elArbiterInjection = document.getElementById('injectionDirectiveBox');
+        const elArbiterPill = document.getElementById('arbiterDecisionPill');
+        const elArbiterDot = document.getElementById('arbiterStatusDot');
+        const elArbiterDecisionText = document.getElementById('arbiterDecisionText');
+        const elArbiterTokCount = document.getElementById('arbiterTokCount');
 
-    <!-- CARD 5: Circuit Breaker (White) -->
-    <div class="card" id="card-breaker">
-      <div class="card-label" style="background: #fee2e2; color: #dc2626;">Safety Guard</div>
-      <h3>Circuit Breaker</h3>
-      <p>Anti-sycophancy & loop brake.</p>
-      <div class="stat" id="breakerRetries">
-        0/3 <span id="breakerStatusTag">Closed</span>
-      </div>
-      <p style="margin-top: 6px; font-size: 11px;" id="simText">Loop Similarity: 0%</p>
-    </div>
+        const elBreakerVal = document.getElementById('breakerValue');
+        const elBreakerBadge = document.getElementById('breakerStatusBadge');
+        const elBreakerSub = document.getElementById('breakerSubText');
+        const elBreakerBar = document.getElementById('breakerProgressBar');
+        const elBreakerProgressText = document.getElementById('breakerProgressText');
 
-    <!-- CARD 6: Token Economics (White) -->
-    <div class="card" id="card-tokens">
-      <div class="card-label" style="background: #dbeafe; color: #2563eb;">Economics</div>
-      <h3>Token Savings</h3>
-      <div class="stat" id="tokenSavingsStat">
-        96% <span>Saved</span>
-      </div>
-      <p style="margin-top: 6px; font-size: 11px;">Hook: 0 Tok | Arbiter: <b id="tokCount">0</b></p>
-      <div class="growth-curve">
-        <svg width="100%" height="100%" viewBox="0 0 100 32" preserveAspectRatio="none">
-          <path d="M0 32 Q 25 28, 50 14 T 100 4" fill="none" stroke="#2563eb" stroke-width="2.5" stroke-linecap="round"></path>
-        </svg>
-      </div>
-    </div>
+        const elRow1Status = document.getElementById('row1Status');
+        const elRow1Dot = document.getElementById('row1Dot');
+        const elRow1Bar = document.getElementById('row1Bar');
+        const elRow1ProgressText = document.getElementById('row1ProgressText');
+        const elRow1Verified = document.getElementById('row1Verified');
 
-    <!-- Handwritten Annotations in Gaegu font -->
-    <div class="annotation" style="top: 24%; left: 24%; transform: rotate(-5deg);">← 0-token local hook</div>
-    <div class="annotation" style="top: 26%; right: 26%; transform: rotate(4deg);">physical tests don't lie →</div>
-    <div class="annotation" style="bottom: 25%; left: 30%; transform: rotate(-8deg);">asymmetric inquiry ✨</div>
-    <div class="annotation" style="bottom: 27%; right: 28%; transform: rotate(6deg);">← zero vision tokens wasted</div>
+        const elRow2Status = document.getElementById('row2Status');
+        const elRow2Dot = document.getElementById('row2Dot');
+        const elRow2Bar = document.getElementById('row2Bar');
+        const elRow2ProgressText = document.getElementById('row2ProgressText');
+        const elRow2Metric = document.getElementById('row2Metric');
+        const elRow2Staged = document.getElementById('row2Staged');
 
-    <!-- Background breathing dots -->
-    <div class="dot" style="top: 8%; left: 35%;"></div>
-    <div class="dot" style="bottom: 18%; left: 55%;"></div>
-    <div class="dot" style="top: 75%; left: 6%;"></div>
-    <div class="dot" style="top: 48%; right: 18%;"></div>
-    <div class="dot" style="top: 85%; right: 38%;"></div>
+        const elRow3Status = document.getElementById('row3Status');
+        const elRow3Dot = document.getElementById('row3Dot');
+        const elRow3Bar = document.getElementById('row3Bar');
+        const elRow3ProgressText = document.getElementById('row3ProgressText');
+        const elRow3Metric = document.getElementById('row3Metric');
+        const elRow3Assertion = document.getElementById('row3Assertion');
 
-  </div>
+        function resetAll() {
+            stopRun();
+            stepIdx = 0;
+            totalTokens = 0;
+            elArbiterTokCount.innerText = "0";
 
-  <!-- Bottom Floating CTA -->
-  <div class="footer-cta">
-    <button class="btn-primary" id="playBtn">
-      <span id="playBtnText">Start Auto Simulation</span>
-      <div class="arrow-circle">
-        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><path d="M5 12h14m-7-7 7 7-7 7"></path></svg>
-      </div>
-    </button>
-    <button class="btn-secondary" id="stepBtn">
-      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polygon points="5 4 15 12 5 20 5 4"></polygon><line x1="19" y1="5" x2="19" y2="19"></line></svg>
-      <span>Next Step</span>
-    </button>
-  </div>
+            elMilestoneVal.innerHTML = `0 / 4 <span style="font-size: 16px; color: var(--text-secondary); font-weight: 400;">(0%)</span>`;
+            elMilestoneBar.style.width = "0%";
+            elCurrentTarget.innerText = "Current: 1. 编写用户数据模型 User";
+            elMilestoneProgressText.innerText = "Pending Verification";
 
-  <!-- Interactive Studio Script -->
-  <script>
-    // Parallax & Mouse Floating
-    const cards = document.querySelectorAll('.card');
-    const dots = document.querySelectorAll('.dot');
-    let mouseX = 0, mouseY = 0;
+            elWorkerReply.innerText = '"System initialized. Ready to execute tasks according to tasks.md."';
+            elWorkerDot.className = "status-dot active-green";
+            elWorkerStatusText.innerText = "MONITORING (IDLE)";
 
-    window.addEventListener('mousemove', (e) => {
-      mouseX = (e.clientX / window.innerWidth) - 0.5;
-      mouseY = (e.clientY / window.innerHeight) - 0.5;
+            elArbiterReason.innerText = "System stands by. Click [▶ Run Auto-Audit] or [⏭ Step] to trigger verification cycles against physical sensors.";
+            elArbiterInjection.innerText = "[Awaiting Arbiter Generation]";
+            elArbiterDot.className = "status-dot active-green";
+            elArbiterDecisionText.innerText = "AUDIT READY";
 
-      cards.forEach((card, index) => {
-        if (card.dataset.dragging === "true") return;
-        const speed = (index + 1) * 12;
-        const x = mouseX * speed;
-        const y = mouseY * speed;
-        const initialRot = card.dataset.baseRot ? parseFloat(card.dataset.baseRot) : 0;
-        card.style.transform = `translate(${x}px, ${y}px) rotate(${initialRot}deg)`;
-      });
+            elBreakerVal.innerHTML = `0 / 3 <span class="badge" style="color: var(--status-green); background: rgba(168, 198, 159, 0.1);">HEALTHY (CLOSED)</span>`;
+            elBreakerSub.innerText = "Loop Similarity: 0.0% | Max retries: 3";
+            elBreakerBar.style.width = "0%";
+            elBreakerProgressText.innerText = "No Stagnation Loop Detected";
 
-      dots.forEach((dot, index) => {
-        const speed = (index + 1) * 25;
-        dot.style.transform = `translate(${mouseX * speed}px, ${mouseY * speed}px)`;
-      });
-    });
+            elRow1Status.innerText = "IN PROGRESS";
+            elRow1Dot.className = "status-dot active-amber";
+            elRow1Bar.style.width = "0%";
+            elRow1ProgressText.innerText = "0% Complete";
+            elRow1Verified.innerText = "PENDING";
 
-    // Draggable Cards Physics
-    cards.forEach(card => {
-      // Store initial rotation from CSS style
-      const match = card.style.transform.match(/rotate\(([-\d.]+)deg\)/);
-      card.dataset.baseRot = match ? match[1] : 0;
+            elRow2Status.innerText = "NO CHANGES";
+            elRow2Dot.className = "status-dot";
+            elRow2Bar.style.width = "0%";
+            elRow2ProgressText.innerText = "Diff Lines: 0";
+            elRow2Metric.innerText = "clean tree";
+            elRow2Staged.innerText = "0 files";
 
-      let isDragging = false;
-      let startX, startY, initialLeft, initialTop;
-
-      card.addEventListener('mousedown', (e) => {
-        // Prevent drag on inputs/selects
-        if (e.target.tagName === 'SELECT' || e.target.tagName === 'INPUT') return;
-        isDragging = true;
-        card.dataset.dragging = "true";
-        card.style.zIndex = 500;
-        startX = e.clientX;
-        startY = e.clientY;
-        const rect = card.getBoundingClientRect();
-        initialLeft = rect.left;
-        initialTop = rect.top;
-        card.style.transform = `rotate(0deg) scale(1.03)`;
-      });
-
-      window.addEventListener('mousemove', (e) => {
-        if (!isDragging) return;
-        const dx = e.clientX - startX;
-        const dy = e.clientY - startY;
-        card.style.left = `${initialLeft + dx}px`;
-        card.style.top = `${initialTop + dy}px`;
-      });
-
-      window.addEventListener('mouseup', () => {
-        if (!isDragging) return;
-        isDragging = false;
-        card.dataset.dragging = "false";
-        card.style.zIndex = 30;
-        card.style.transform = `rotate(${card.dataset.baseRot}deg) scale(1)`;
-      });
-    });
-
-    // Animated Breathing Dots
-    function animateDots() {
-      const time = Date.now() * 0.001;
-      dots.forEach((dot, i) => {
-        dot.style.opacity = 0.2 + Math.sin(time + i * 1.5) * 0.2;
-      });
-      requestAnimationFrame(animateDots);
-    }
-    animateDots();
-
-    // -------------------------------------------------------------
-    // Supervisor Watchdog Simulation Engine
-    // -------------------------------------------------------------
-    const scenarios = {
-      happy: [
-        {
-          taskIdx: 0,
-          worker: "我已编写完成 User 模型，字段包括 username, email, password_hash。",
-          git: "M src/models/user.py (+34 lines)",
-          pytest: "test_user.py::test_create PASSED [100%]",
-          decision: "PASS",
-          reason: "Git Diff 存在且单元测试全绿。",
-          injection: "第一阶段完成。继续执行任务 2：封装密码加密工具。",
-          tokens: 410,
-          retries: "0/3",
-          sim: "0%"
-        },
-        {
-          taskIdx: 1,
-          worker: "已封装 password_helper.py，使用 bcrypt 进行安全哈希校验。",
-          git: "M src/utils/security.py (+28 lines)",
-          pytest: "test_security.py::test_hash PASSED [100%]",
-          decision: "PASS",
-          reason: "物理事实符合预期，无回归报错。",
-          injection: "第二阶段完成。请继续任务 3：编写注册与登录测试。",
-          tokens: 395,
-          retries: "0/3",
-          sim: "0%"
-        },
-        {
-          taskIdx: 2,
-          worker: "测试用例已全面覆盖注册冲突与密码错误场景。",
-          git: "M tests/test_auth.py (+65 lines)",
-          pytest: "tests/test_auth.py PASSED (4 tests passed)",
-          decision: "PASS",
-          reason: "测试套件扩充完成，执行状态正常。",
-          injection: "第三阶段完成。请运行并通过全局单元测试回归。",
-          tokens: 420,
-          retries: "0/3",
-          sim: "0%"
-        },
-        {
-          taskIdx: 3,
-          worker: "已执行 pytest -q，所有 7 个用例无任何回归报错，全部通过！",
-          git: "M tasks.md (+2, -2)",
-          pytest: "======= 7 passed in 0.12s =======",
-          decision: "PASS",
-          reason: "全量验证通过，tasks.md 全部项目交付完毕！",
-          injection: "🎉 任务清单全部完成，系统已自动勾选归档。",
-          tokens: 360,
-          retries: "0/3",
-          sim: "0%"
+            elRow3Status.innerText = "STANDBY";
+            elRow3Dot.className = "status-dot";
+            elRow3Bar.style.width = "0%";
+            elRow3ProgressText.innerText = "Tests Passed: 0/0";
+            elRow3Metric.innerText = "Exit Code: ---";
+            elRow3Assertion.innerText = "READY";
         }
-      ],
-      hallucination: [
-        {
-          taskIdx: 0,
-          worker: "我已经全部重构并写好了完整的用户数据模型，你可以直接调用了！",
-          git: "No changes staged. (Git Diff 为空)",
-          pytest: "ERROR: src/models/user.py not found",
-          decision: "RETRY",
-          reason: "【幻觉拦截】Worker 自称完成，但工作区无任何物理修改！",
-          injection: "你声称已完成，但当前 Git 变动为空且找不到模型文件，请落盘编写！",
-          tokens: 440,
-          retries: "1/3",
-          sim: "10%"
-        },
-        {
-          taskIdx: 0,
-          worker: "非常抱歉刚才未落地文件，现在已补全 User 模型并保存写入代码。",
-          git: "A src/models/user.py (+35 lines)",
-          pytest: "test_user.py::test_create PASSED [100%]",
-          decision: "PASS",
-          reason: "补齐物理代码且测试绿灯，允许放行推进。",
-          injection: "验收通过，推进到下一子任务。",
-          tokens: 380,
-          retries: "0/3",
-          sim: "0%"
+
+        function stepRun() {
+            const script = scenarios[currentScenario];
+            if (stepIdx >= script.length) {
+                stopRun();
+                return;
+            }
+
+            const s = script[stepIdx];
+
+            // 1. Worker
+            elWorkerStatusText.innerText = "STAGNATION CAPTURED";
+            elWorkerDot.className = "status-dot active-amber";
+            elWorkerReply.innerText = `"${s.workerReply}"`;
+
+            // 2. Metrics & Milestone
+            elMilestoneVal.innerHTML = `${s.milestone}`;
+            elMilestoneBar.style.width = `${s.progressPercent}%`;
+            elCurrentTarget.innerText = s.currentTask;
+            elMilestoneProgressText.innerText = s.decision === "PASS" ? "Verified & Checked" : "Rejected & Retrying";
+
+            // 3. Tokens
+            totalTokens += s.tokens;
+            elArbiterTokCount.innerText = totalTokens;
+
+            // 4. Arbiter
+            elArbiterReason.innerText = s.reason;
+            elArbiterInjection.innerText = `Directive: "${s.injection}"`;
+
+            if (s.decision === "PASS") {
+                elArbiterDecisionText.innerText = "VERIFIED (PASS)";
+                elArbiterDot.className = "status-dot active-green";
+            } else if (s.decision === "RETRY") {
+                elArbiterDecisionText.innerText = "REJECTED (RETRY)";
+                elArbiterDot.className = "status-dot active-amber";
+            } else {
+                elArbiterDecisionText.innerText = "HALTED (BLOCKED)";
+                elArbiterDot.className = "status-dot active-red";
+            }
+
+            // 5. Breaker
+            elBreakerVal.innerHTML = `${s.retries} <span class="badge" style="color: ${s.tripped ? 'var(--status-red)' : 'var(--status-green)'}; background: ${s.tripped ? 'rgba(198,168,159,0.1)' : 'rgba(168, 198, 159, 0.1)'};">${s.tripped ? 'TRIPPED (LOCK)' : 'HEALTHY (CLOSED)'}</span>`;
+            elBreakerSub.innerText = `Loop Similarity: ${s.similarity} | Max retries: 3`;
+            elBreakerBar.style.width = s.similarity;
+            elBreakerProgressText.innerText = s.tripped ? "CRITICAL: Infinite Loop Intercepted" : `Similarity ${s.similarity}`;
+
+            // 6. Sensor Table Rows
+            elRow1Verified.innerText = s.row1Verified;
+            elRow1Bar.style.width = `${s.progressPercent}%`;
+            elRow1ProgressText.innerText = `${s.progressPercent}% Complete`;
+            if (s.decision === "PASS") {
+                elRow1Status.innerText = "VERIFIED";
+                elRow1Dot.className = "status-dot active-green";
+            } else if (s.decision === "RETRY") {
+                elRow1Status.innerText = "REJECTED";
+                elRow1Dot.className = "status-dot active-amber";
+            } else {
+                elRow1Status.innerText = "TRIPPED";
+                elRow1Dot.className = "status-dot active-red";
+            }
+
+            // Git row
+            elRow2ProgressText.innerText = s.gitDiff;
+            elRow2Metric.innerText = s.gitStaged;
+            elRow2Staged.innerText = s.gitStaged;
+            if (s.gitDiff.includes("No changes") || s.gitDiff.includes("clean")) {
+                elRow2Status.innerText = "EMPTY DIFF";
+                elRow2Dot.className = "status-dot active-red";
+                elRow2Bar.style.width = "0%";
+            } else {
+                elRow2Status.innerText = "DIFF STAGED";
+                elRow2Dot.className = "status-dot active-green";
+                elRow2Bar.style.width = "75%";
+            }
+
+            // Pytest row
+            elRow3ProgressText.innerText = s.pytestText;
+            if (s.pytestPassed) {
+                elRow3Status.innerText = "PASSED (0)";
+                elRow3Dot.className = "status-dot active-green";
+                elRow3Metric.innerText = "Exit Code: 0";
+                elRow3Assertion.innerText = "ALL GREEN";
+                elRow3Bar.style.width = "100%";
+            } else {
+                elRow3Status.innerText = "FAILED (1)";
+                elRow3Dot.className = "status-dot active-red";
+                elRow3Metric.innerText = "Exit Code: 1";
+                elRow3Assertion.innerText = "ASSERTION_ERROR";
+                elRow3Bar.style.width = "30%";
+            }
+
+            if (s.tripped) {
+                stopRun();
+                return;
+            }
+
+            stepIdx++;
+            if (stepIdx >= script.length) {
+                stopRun();
+            }
         }
-      ],
-      test_failure: [
-        {
-          taskIdx: 1,
-          worker: "密码验证函数已优化完毕，我精简了入参转码逻辑。",
-          git: "M src/utils/security.py (+15, -8)",
-          pytest: "FAILED: TypeError: expected bytes, got str in verify_password()",
-          decision: "RETRY",
-          reason: "【测试红灯】改动破坏了既有用例：TypeError: expected bytes, got str。",
-          injection: "测试报错：expected bytes, got str。请修复类型转码后再行提交！",
-          tokens: 460,
-          retries: "1/3",
-          sim: "15%"
-        },
-        {
-          taskIdx: 1,
-          worker: "已修复入参编码，将 str 转为 utf-8 字节流后再计算哈希。",
-          git: "M src/utils/security.py (+4, -2)",
-          pytest: "tests/test_security.py PASSED [100%]",
-          decision: "PASS",
-          reason: "物理测试已全绿，Bug 消除成功。",
-          injection: "验证通过，进入下一阶段。",
-          tokens: 390,
-          retries: "0/3",
-          sim: "0%"
+
+        function startRun() {
+            isRunning = true;
+            elPlayBtnText.innerText = "❚❚ Pause Audit";
+            playInterval = setInterval(stepRun, 2600);
         }
-      ],
-      circuit_breaker: [
-        {
-          taskIdx: 0,
-          worker: "我遇到语法报错，我重新运行了一遍。",
-          git: "No changes.",
-          pytest: "FAILED: SyntaxError in config.py: invalid syntax",
-          decision: "RETRY",
-          reason: "语法错误未修复。",
-          injection: "请检查 config.py 第 12 行语法！",
-          tokens: 350,
-          retries: "1/3",
-          sim: "30%"
-        },
-        {
-          taskIdx: 0,
-          worker: "我遇到语法报错，我重新运行了一遍。",
-          git: "No changes.",
-          pytest: "FAILED: SyntaxError in config.py: invalid syntax",
-          decision: "RETRY",
-          reason: "检测到重复回复与未解决报错。",
-          injection: "请修正第 12 行括号缺失！",
-          tokens: 360,
-          retries: "2/3",
-          sim: "95%"
-        },
-        {
-          taskIdx: 0,
-          worker: "我遇到语法报错，我重新运行了一遍。",
-          git: "No changes.",
-          pytest: "FAILED: SyntaxError in config.py: invalid syntax",
-          decision: "BLOCKED",
-          reason: "【熔断触发】文本相似度超 95% 且达 3 次重试上限，系统紧急挂起！",
-          injection: "[SYSTEM_ALERT] 智能体陷入死锁，已停止自动注入，请人工开发者介入！",
-          tokens: 370,
-          retries: "3/3",
-          sim: "98%",
-          tripped: true
+
+        function stopRun() {
+            isRunning = false;
+            clearInterval(playInterval);
+            elPlayBtnText.innerText = "▶ Run Auto-Audit";
         }
-      ]
-    };
 
-    let curScenario = 'happy';
-    let stepIndex = 0;
-    let isPlaying = false;
-    let playTimer = null;
-    let accumulatedTokens = 0;
+        elPlayBtn.addEventListener('click', () => {
+            if (isRunning) stopRun();
+            else startRun();
+        });
 
-    const elTasks = [
-      document.getElementById('t-0'),
-      document.getElementById('t-1'),
-      document.getElementById('t-2'),
-      document.getElementById('t-3')
-    ];
-    const elSensor = document.getElementById('sensorOutput');
-    const elWorkerChat = document.getElementById('workerChatBubble');
-    const elWorkerState = document.getElementById('workerStateText');
-    const elArbiterReason = document.getElementById('arbiterReason');
-    const elArbiterBadge = document.getElementById('arbiterBadge');
-    const elArbiterPrompt = document.getElementById('arbiterPrompt');
-    const elBreakerRetries = document.getElementById('breakerRetries');
-    const elBreakerTag = document.getElementById('breakerStatusTag');
-    const elSimText = document.getElementById('simText');
-    const elTokCount = document.getElementById('tokCount');
-    const elPlayBtn = document.getElementById('playBtn');
-    const elPlayBtnText = document.getElementById('playBtnText');
-    const elStepBtn = document.getElementById('stepBtn');
-    const elScenarioSelect = document.getElementById('scenarioSelect');
+        elStepBtn.addEventListener('click', () => {
+            stopRun();
+            stepRun();
+        });
 
-    function resetStudio() {
-      stopAutoPlay();
-      stepIndex = 0;
-      accumulatedTokens = 0;
-      elTokCount.innerText = "0";
+        elResetBtn.addEventListener('click', resetAll);
 
-      elTasks.forEach((item, idx) => {
-        item.className = "check-item" + (idx === 0 ? " in-progress" : "");
-      });
-      elTasks[0].innerText = "⚡ 1. User 数据模型编写";
-      elTasks[1].innerText = "○ 2. 密码加密工具封装";
-      elTasks[2].innerText = "○ 3. 登录与注册测试编写";
-      elTasks[3].innerText = "○ 4. 全局测试回归验收";
+        elScenarioSelect.addEventListener('change', (e) => {
+            currentScenario = e.target.value;
+            resetAll();
+        });
 
-      elSensor.innerHTML = `[git diff] No changes staged.<br>[pytest] Waiting for invocation...`;
-      elWorkerChat.innerText = `"Waiting for supervisor instruction..."`;
-      elWorkerState.innerText = "Monitoring for pause or stalls...";
-      elArbiterReason.innerText = "Ground truth comparison ready.";
-      elArbiterBadge.className = "decision-badge badge-pass";
-      elArbiterBadge.innerText = "READY";
-      elArbiterPrompt.innerText = "Injection: Click [Auto Play] or [Next Step] below.";
-      elBreakerRetries.innerHTML = `0/3 <span id="breakerStatusTag">Closed</span>`;
-      elSimText.innerText = "Loop Similarity: 0%";
-    }
-
-    function executeNextStep() {
-      const script = scenarios[curScenario];
-      if (stepIndex >= script.length) {
-        stopAutoPlay();
-        return;
-      }
-
-      const step = script[stepIndex];
-
-      // Update Worker AI
-      elWorkerState.innerText = "Stagnation caught at turn end.";
-      elWorkerChat.innerText = `"${step.worker}"`;
-
-      // Update Sensors
-      elSensor.innerHTML = `<b>[git diff]</b> ${step.git}<br><b>[pytest]</b> ${step.pytest}`;
-
-      // Update Tokens
-      accumulatedTokens += step.tokens;
-      elTokCount.innerText = accumulatedTokens;
-
-      // Update Arbiter
-      elArbiterReason.innerText = step.reason;
-      elArbiterPrompt.innerText = `Injection: ${step.injection}`;
-
-      if (step.decision === "PASS") {
-        elArbiterBadge.className = "decision-badge badge-pass";
-        elArbiterBadge.innerText = "PASS";
-        // Check task
-        if (step.taskIdx !== null) {
-          elTasks[step.taskIdx].className = "check-item done";
-          elTasks[step.taskIdx].innerText = `✓ ${elTasks[step.taskIdx].innerText.replace(/^[⚡○✓]\s*/, '')}`;
-          if (elTasks[step.taskIdx + 1]) {
-            elTasks[step.taskIdx + 1].className = "check-item in-progress";
-            elTasks[step.taskIdx + 1].innerText = `⚡ ${elTasks[step.taskIdx + 1].innerText.replace(/^[⚡○✓]\s*/, '')}`;
-          }
-        }
-      } else if (step.decision === "RETRY") {
-        elArbiterBadge.className = "decision-badge badge-retry";
-        elArbiterBadge.innerText = "RETRY";
-      } else {
-        elArbiterBadge.className = "decision-badge badge-blocked";
-        elArbiterBadge.innerText = "BLOCKED";
-      }
-
-      // Update Breaker
-      elBreakerRetries.innerHTML = `${step.retries} <span id="breakerStatusTag">${step.tripped ? "TRIPPED" : "Closed"}</span>`;
-      elSimText.innerText = `Loop Similarity: ${step.sim}`;
-
-      if (step.tripped) {
-        document.getElementById('breakerStatusTag').style.background = "#fee2e2";
-        document.getElementById('breakerStatusTag').style.color = "#dc2626";
-        stopAutoPlay();
-        return;
-      }
-
-      stepIndex++;
-      if (stepIndex >= script.length) {
-        stopAutoPlay();
-      }
-    }
-
-    function startAutoPlay() {
-      isPlaying = true;
-      elPlayBtnText.innerText = "Pause Simulation";
-      playTimer = setInterval(executeNextStep, 2400);
-    }
-
-    function stopAutoPlay() {
-      isPlaying = false;
-      clearInterval(playTimer);
-      elPlayBtnText.innerText = "Start Auto Simulation";
-    }
-
-    elPlayBtn.addEventListener('click', () => {
-      if (isPlaying) stopAutoPlay();
-      else startAutoPlay();
-    });
-
-    elStepBtn.addEventListener('click', () => {
-      stopAutoPlay();
-      executeNextStep();
-    });
-
-    elScenarioSelect.addEventListener('change', (e) => {
-      curScenario = e.target.value;
-      resetStudio();
-    });
-
-    document.getElementById('navResetBtn').addEventListener('click', (e) => {
-      e.preventDefault();
-      resetStudio();
-    });
-
-    resetStudio();
-  </script>
+        resetAll();
+    </script>
 </body>
 </html>
