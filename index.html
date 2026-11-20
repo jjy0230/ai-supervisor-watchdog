@@ -1,0 +1,771 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>AI Supervisor Watchdog - 智能体外部监督与自愈交互演示</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          colors: {
+            brand: { 50: '#f0fdf4', 500: '#22c55e', 600: '#16a34a', 700: '#15803d' },
+            dark: { 800: '#1e293b', 850: '#172033', 900: '#0f172a', 950: '#020617' }
+          },
+          fontFamily: {
+            mono: ['JetBrains Mono', 'Fira Code', 'Consolas', 'monospace']
+          }
+        }
+      }
+    }
+  </script>
+  <style>
+    /* Custom scrollbars */
+    ::-webkit-scrollbar { width: 6px; height: 6px; }
+    ::-webkit-scrollbar-track { background: #0f172a; }
+    ::-webkit-scrollbar-thumb { background: #334155; border-radius: 3px; }
+    ::-webkit-scrollbar-thumb:hover { background: #475569; }
+    .pulse-glow { animation: pulseGlow 2s infinite; }
+    @keyframes pulseGlow {
+      0%, 100% { opacity: 1; transform: scale(1); }
+      50% { opacity: 0.6; transform: scale(0.98); }
+    }
+  </style>
+</head>
+<body class="bg-dark-950 text-slate-200 font-sans min-h-screen flex flex-col selection:bg-brand-500 selection:text-white">
+
+  <!-- Top Navbar -->
+  <header class="border-b border-slate-800 bg-dark-900/90 backdrop-blur sticky top-0 z-50 px-4 lg:px-6 py-3 flex flex-wrap items-center justify-between gap-4">
+    <div class="flex items-center gap-3">
+      <div class="w-9 h-9 rounded-lg bg-emerald-500/10 border border-emerald-500/30 flex items-center justify-center text-emerald-400 font-bold shadow-inner">
+        <i class="fa-solid fa-shield-halved text-lg"></i>
+      </div>
+      <div>
+        <div class="flex items-center gap-2">
+          <h1 class="font-bold text-base text-white tracking-wide">AI Supervisor Watchdog</h1>
+          <span class="text-xs px-2 py-0.5 rounded-full bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 font-mono">v0.1.0 静态演示站</span>
+        </div>
+        <p class="text-xs text-slate-400">零 Token 本地事件监听 + 物理传感器 + 非对称仲裁自愈</p>
+      </div>
+    </div>
+
+    <!-- Center Control Bar -->
+    <div class="flex items-center gap-2 bg-dark-950 p-1.5 rounded-xl border border-slate-800 shadow-lg">
+      <select id="scenarioSelector" class="bg-slate-900 border border-slate-700 text-xs text-slate-200 rounded-lg px-2.5 py-1.5 focus:outline-none focus:border-emerald-500 font-medium">
+        <option value="happy">场景 1: 标准自愈全通流水线 (Happy Path)</option>
+        <option value="hallucination">场景 2: 幻觉拦截 (声称完成但 Git Diff 为空)</option>
+        <option value="test_failure">场景 3: 测试报错驱动修复 (Sensor 发现回归)</option>
+        <option value="circuit_breaker">场景 4: 死锁拦截与熔断报警 (Circuit Breaker)</option>
+      </select>
+
+      <button id="btnPlay" class="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-semibold shadow transition">
+        <i class="fa-solid fa-play text-xs"></i> <span>自动演示</span>
+      </button>
+
+      <button id="btnStep" class="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-medium border border-slate-700 transition">
+        <i class="fa-solid fa-forward-step text-xs"></i> <span>单步调试</span>
+      </button>
+
+      <button id="btnReset" class="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-slate-800/60 hover:bg-slate-700 text-slate-400 hover:text-white text-xs transition" title="重置状态">
+        <i class="fa-solid fa-rotate-left"></i>
+      </button>
+    </div>
+
+    <!-- Token Economics Indicator -->
+    <div class="flex items-center gap-4 text-xs font-mono">
+      <div class="bg-dark-950 border border-slate-800 px-3 py-1.5 rounded-lg flex items-center gap-2">
+        <span class="text-slate-400">监控消耗:</span>
+        <span class="text-emerald-400 font-bold">0 Tokens</span>
+        <span class="text-slate-600">|</span>
+        <span class="text-slate-400">仲裁累计:</span>
+        <span id="tokenCounter" class="text-amber-400 font-bold">0</span>
+        <span class="text-slate-400">Tokens</span>
+      </div>
+      <a href="https://github.com/jjy0230/ai-supervisor-watchdog" target="_blank" class="text-slate-400 hover:text-white transition flex items-center gap-1.5">
+        <i class="fa-brands fa-github text-base"></i>
+        <span class="hidden sm:inline">GitHub</span>
+      </a>
+    </div>
+  </header>
+
+  <!-- Main 3-Column Studio Grid -->
+  <main class="flex-1 p-4 lg:p-6 grid grid-cols-1 lg:grid-cols-12 gap-5 max-w-[1700px] mx-auto w-full">
+
+    <!-- Column 1: tasks.md & Codebase Sensors (4 cols) -->
+    <section class="lg:col-span-4 flex flex-col gap-4">
+      
+      <!-- Panel 1.1: tasks.md Checklist -->
+      <div class="bg-dark-900 border border-slate-800 rounded-xl shadow-md overflow-hidden flex flex-col">
+        <div class="px-4 py-2.5 bg-dark-850 border-b border-slate-800 flex items-center justify-between">
+          <div class="flex items-center gap-2">
+            <i class="fa-regular fa-file-lines text-emerald-400 text-sm"></i>
+            <span class="text-xs font-mono font-bold text-slate-200">tasks.md (意图清单)</span>
+          </div>
+          <span id="taskProgressBadge" class="text-[11px] font-mono px-2 py-0.5 rounded bg-slate-800 text-slate-300">0/4 完成</span>
+        </div>
+
+        <div class="p-4 space-y-3">
+          <div class="bg-slate-950/60 p-2.5 rounded-lg border border-slate-800/80">
+            <div class="text-[10px] text-slate-400 font-mono uppercase tracking-wider mb-0.5">Objective:</div>
+            <div class="text-xs text-slate-300 font-medium">构建一个高内聚、易测试的用户认证核心服务。</div>
+          </div>
+
+          <div id="checklistContainer" class="space-y-2">
+            <!-- Dynamic task items injected via JS -->
+          </div>
+        </div>
+      </div>
+
+      <!-- Panel 1.2: Physical Sensors (Git Diff + Tests) -->
+      <div class="bg-dark-900 border border-slate-800 rounded-xl shadow-md overflow-hidden flex-1 flex flex-col">
+        <div class="px-4 py-2.5 bg-dark-850 border-b border-slate-800 flex items-center justify-between">
+          <div class="flex items-center gap-2">
+            <i class="fa-solid fa-microchip text-indigo-400 text-sm"></i>
+            <span class="text-xs font-mono font-bold text-slate-200">Codebase Sensors (物理探针)</span>
+          </div>
+          <span class="text-[10px] font-mono px-1.5 py-0.5 rounded bg-indigo-500/10 text-indigo-300 border border-indigo-500/20">0-Token 本地运行</span>
+        </div>
+
+        <div class="p-4 flex-1 flex flex-col gap-3 font-mono text-xs">
+          <!-- Git Status Box -->
+          <div class="bg-dark-950 rounded-lg p-3 border border-slate-800">
+            <div class="flex items-center justify-between text-slate-400 text-[11px] mb-1.5">
+              <span><i class="fa-solid fa-code-commit text-slate-500 mr-1"></i> Git Diff 状态:</span>
+              <span id="gitBadge" class="px-1.5 py-0.2 rounded text-[10px] bg-slate-800 text-slate-400">WAITING</span>
+            </div>
+            <pre id="gitDiffStat" class="text-slate-300 text-[11px] whitespace-pre-wrap overflow-x-auto">No file changes staged.</pre>
+          </div>
+
+          <!-- Test / Linter Box -->
+          <div class="bg-dark-950 rounded-lg p-3 border border-slate-800 flex-1 flex flex-col">
+            <div class="flex items-center justify-between text-slate-400 text-[11px] mb-1.5">
+              <span><i class="fa-solid fa-vial-circle-check text-slate-500 mr-1"></i> pytest 传感器输出:</span>
+              <span id="testBadge" class="px-1.5 py-0.2 rounded text-[10px] bg-slate-800 text-slate-400">NOT RUN</span>
+            </div>
+            <pre id="testOutput" class="text-slate-300 text-[11px] flex-1 overflow-y-auto whitespace-pre-wrap bg-slate-900/60 p-2 rounded border border-slate-800/80">pytest -q (等待传感器调用)</pre>
+          </div>
+        </div>
+      </div>
+
+    </section>
+
+    <!-- Column 2: Target Worker AI (Simulated Cursor/CLI) (4 cols) -->
+    <section class="lg:col-span-4 flex flex-col bg-dark-900 border border-slate-800 rounded-xl shadow-md overflow-hidden">
+      <!-- Simulated Window Header -->
+      <div class="px-4 py-2.5 bg-dark-850 border-b border-slate-800 flex items-center justify-between">
+        <div class="flex items-center gap-2">
+          <div class="flex gap-1.5 mr-1">
+            <span class="w-2.5 h-2.5 rounded-full bg-red-500/80 inline-block"></span>
+            <span class="w-2.5 h-2.5 rounded-full bg-amber-500/80 inline-block"></span>
+            <span class="w-2.5 h-2.5 rounded-full bg-green-500/80 inline-block"></span>
+          </div>
+          <span class="text-xs font-mono font-bold text-slate-200">目标 Worker AI (Cursor / CLI)</span>
+        </div>
+        <div id="workerStatePill" class="flex items-center gap-1.5 text-[11px] font-mono px-2 py-0.5 rounded-full bg-slate-800 text-slate-400">
+          <span class="w-2 h-2 rounded-full bg-slate-500"></span>
+          <span>IDLE (空闲)</span>
+        </div>
+      </div>
+
+      <!-- Chat History Stream -->
+      <div id="chatStream" class="flex-1 p-4 space-y-3 overflow-y-auto max-h-[560px]">
+        <!-- Messages will be injected here -->
+      </div>
+
+      <!-- Simulated Input Box (Visual indicator of injection) -->
+      <div class="p-3 bg-dark-950 border-t border-slate-800 flex items-center gap-2">
+        <div class="flex-1 bg-slate-900 border border-slate-700/80 rounded-lg px-3 py-2 text-xs text-slate-400 font-mono truncate" id="simulatedInput">
+          <span class="text-slate-500">外部 Supervisor 将通过 UIA / PTY 自动写入...</span>
+        </div>
+        <button class="px-3 py-2 rounded-lg bg-slate-800 text-slate-400 text-xs font-mono border border-slate-700 cursor-not-allowed">
+          <i class="fa-regular fa-paper-plane"></i>
+        </button>
+      </div>
+    </section>
+
+    <!-- Column 3: Supervisor Arbiter & Guardrails (4 cols) -->
+    <section class="lg:col-span-4 flex flex-col gap-4">
+
+      <!-- Panel 3.1: Arbiter Decision Card -->
+      <div class="bg-dark-900 border border-slate-800 rounded-xl shadow-md overflow-hidden flex flex-col">
+        <div class="px-4 py-2.5 bg-dark-850 border-b border-slate-800 flex items-center justify-between">
+          <div class="flex items-center gap-2">
+            <i class="fa-solid fa-gavel text-amber-400 text-sm"></i>
+            <span class="text-xs font-mono font-bold text-slate-200">Arbiter 仲裁大脑 (Claude 3.5)</span>
+          </div>
+          <span id="decisionPill" class="text-[11px] font-mono font-bold px-2 py-0.5 rounded bg-slate-800 text-slate-400 border border-slate-700">WAITING</span>
+        </div>
+
+        <div class="p-4 space-y-3 font-mono">
+          <!-- Reason Box -->
+          <div>
+            <div class="text-[11px] text-slate-400 mb-1 flex items-center gap-1">
+              <i class="fa-solid fa-magnifying-glass text-slate-500"></i>
+              <span>客观证据链比对判定:</span>
+            </div>
+            <div id="decisionReason" class="text-xs bg-dark-950 p-2.5 rounded-lg border border-slate-800 text-slate-300 min-h-[50px] leading-relaxed">
+              尚未触发仲裁轮次，点击 [单步调试] 或 [自动演示] 启动系统。
+            </div>
+          </div>
+
+          <!-- Generated Prompt Box -->
+          <div>
+            <div class="text-[11px] text-slate-400 mb-1 flex items-center gap-1">
+              <i class="fa-solid fa-reply text-slate-500"></i>
+              <span>生成的单向注入指令:</span>
+            </div>
+            <div id="decisionInjection" class="text-xs bg-dark-950 p-2.5 rounded-lg border border-slate-800 text-emerald-300 font-mono min-h-[50px] leading-relaxed">
+              --
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Panel 3.2: Circuit Breaker & Safety Metrics -->
+      <div class="bg-dark-900 border border-slate-800 rounded-xl shadow-md overflow-hidden">
+        <div class="px-4 py-2.5 bg-dark-850 border-b border-slate-800 flex items-center justify-between">
+          <div class="flex items-center gap-2">
+            <i class="fa-solid fa-bolt-lightning text-rose-400 text-sm"></i>
+            <span class="text-xs font-mono font-bold text-slate-200">Circuit Breaker (防死锁熔断)</span>
+          </div>
+          <span id="breakerStateBadge" class="text-[10px] font-mono font-bold px-1.5 py-0.5 rounded bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">CLOSED (正常)</span>
+        </div>
+
+        <div class="p-4 space-y-3 text-xs font-mono">
+          <!-- Task Retry Counter -->
+          <div>
+            <div class="flex justify-between text-slate-400 mb-1">
+              <span>当前子任务重试次数:</span>
+              <span id="retryCounter" class="text-slate-200">0 / 3</span>
+            </div>
+            <div class="w-full bg-slate-950 rounded-full h-1.5 overflow-hidden">
+              <div id="retryProgressBar" class="bg-amber-500 h-1.5 rounded-full transition-all duration-300" style="width: 0%"></div>
+            </div>
+          </div>
+
+          <!-- Similarity Meter -->
+          <div>
+            <div class="flex justify-between text-slate-400 mb-1">
+              <span>Worker 回复文本相似度 (死循环指标):</span>
+              <span id="similarityMeter" class="text-slate-200">0%</span>
+            </div>
+            <div class="w-full bg-slate-950 rounded-full h-1.5 overflow-hidden">
+              <div id="similarityProgressBar" class="bg-rose-500 h-1.5 rounded-full transition-all duration-300" style="width: 0%"></div>
+            </div>
+          </div>
+
+          <div id="breakerAlertBox" class="hidden p-2 rounded bg-rose-500/10 border border-rose-500/30 text-rose-300 text-[11px]">
+            <i class="fa-solid fa-triangle-exclamation mr-1"></i>
+            <span id="breakerAlertText">熔断已触发</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Panel 3.3: System Timeline Activity -->
+      <div class="bg-dark-900 border border-slate-800 rounded-xl shadow-md overflow-hidden flex-1 flex flex-col">
+        <div class="px-4 py-2.5 bg-dark-850 border-b border-slate-800 flex items-center justify-between">
+          <div class="flex items-center gap-2">
+            <i class="fa-solid fa-list-check text-slate-400 text-sm"></i>
+            <span class="text-xs font-mono font-bold text-slate-200">Watchdog 事件流水</span>
+          </div>
+        </div>
+        <div id="eventLogList" class="p-3 text-[11px] font-mono space-y-2 flex-1 overflow-y-auto max-h-[160px] text-slate-400">
+          <div class="text-slate-600">[System] 守护进程就绪，等待事件触发...</div>
+        </div>
+      </div>
+
+    </section>
+
+  </main>
+
+  <!-- Bottom Architecture Summary Bar -->
+  <footer class="border-t border-slate-800 bg-dark-900 px-6 py-4 text-xs text-slate-400 flex flex-wrap items-center justify-between gap-4">
+    <div class="flex items-center gap-6">
+      <div class="flex items-center gap-2">
+        <span class="w-2 h-2 rounded-full bg-emerald-400"></span>
+        <span>Windows 原生 UIA 3.0 / PTY 监听</span>
+      </div>
+      <div class="flex items-center gap-2">
+        <span class="w-2 h-2 rounded-full bg-indigo-400"></span>
+        <span>AST RepoMap (< 1000 Token 架构骨架)</span>
+      </div>
+      <div class="flex items-center gap-2">
+        <span class="w-2 h-2 rounded-full bg-amber-400"></span>
+        <span>非对称单向质询 (拒绝 AI 互迎合)</span>
+      </div>
+    </div>
+    <div class="font-mono text-slate-500">
+      Built with ❤️ for Autonomous Software Engineering.
+    </div>
+  </footer>
+
+  <!-- Application Script -->
+  <script>
+    // State Store
+    const state = {
+      scenario: 'happy',
+      currentStep: 0,
+      isPlaying: false,
+      timer: null,
+      tokensUsed: 0,
+      tasks: [
+        { text: "编写用户数据模型 `User` (username, email, hash)", status: "pending" },
+        { text: "编写密码加密与验证工具函数", status: "pending" },
+        { text: "编写注册与登录逻辑单元测试", status: "pending" },
+        { text: "运行并通过全部单元测试", status: "pending" }
+      ],
+      chat: [],
+      retries: 0,
+      similarity: 0,
+      isTripped: false
+    };
+
+    // Scenarios Script Definitions
+    const scenarios = {
+      happy: [
+        {
+          stepName: "开始第一项任务",
+          workerAction: { type: "system", text: "Supervisor 下发第 1 阶段任务：编写用户数据模型 User。" },
+          workerReply: "我已经完成了 User 模型的编写，包含 username、email 及 hash 字段。",
+          git: "M  src/models/user.py | 34 +++++++++++++++++++++\n1 file changed, 34 insertions(+)",
+          testOut: "test_models.py::test_user_create PASSED [100%]\n1 passed in 0.03s",
+          testPassed: true,
+          hasGit: true,
+          decision: "PASS",
+          reason: "物理事实核验：Git Diff 产生有效新增 34 行，且模型单元测试全部通过。",
+          injection: "很好，第 1 阶段目标通过。接下来请执行任务 2：编写密码加密与验证工具函数。",
+          advanceTask: 0,
+          tokens: 410
+        },
+        {
+          stepName: "推进第二项任务",
+          workerAction: { type: "system", text: "Worker 正在执行密码加密工具编写..." },
+          workerReply: "已编写完成 password_helper.py，集成了 bcrypt 哈希与校验函数。",
+          git: "M  src/utils/security.py | 28 ++++++++++++++++++++\n1 file changed, 28 insertions(+)",
+          testOut: "test_security.py::test_password_hash PASSED [100%]\n2 passed in 0.05s",
+          testPassed: true,
+          hasGit: true,
+          decision: "PASS",
+          reason: "物理事实核验：代码变动明确，密码加密功能正常覆盖。",
+          injection: "第 2 阶段目标通过。接下来请执行任务 3：编写注册与登录逻辑单元测试。",
+          advanceTask: 1,
+          tokens: 395
+        },
+        {
+          stepName: "推进第三项任务",
+          workerAction: { type: "system", text: "Worker 正在编写测试套件..." },
+          workerReply: "所有测试用例已覆盖用户注册冲突、密码错误以及成功登录场景。",
+          git: "M  tests/test_auth.py | 65 ++++++++++++++++++++++++++++++++++\n1 file changed, 65 insertions(+)",
+          testOut: "tests/test_auth.py::test_register PASSED\ntests/test_auth.py::test_login PASSED\n4 passed in 0.08s",
+          testPassed: true,
+          hasGit: true,
+          decision: "PASS",
+          reason: "测试用例编写完备，且执行绿灯。",
+          injection: "第 3 阶段通过。请执行任务 4：全局回归运行全部单元测试。",
+          advanceTask: 2,
+          tokens: 420
+        },
+        {
+          stepName: "最终验收",
+          workerAction: { type: "system", text: "Worker 触发全局测试回归..." },
+          workerReply: "已执行 pytest -q，所有 7 个测试全部成功通过，无任何回归问题。",
+          git: "M  tasks.md | 4 +---\n1 file changed, 2 insertions(+), 2 deletions(-)",
+          testOut: "======= 7 passed in 0.14s =======",
+          testPassed: true,
+          hasGit: true,
+          decision: "PASS",
+          reason: "项目全量测试通过，代码库状态干净，符合交付规格！",
+          injection: "🎉 恭喜！当前 tasks.md 清单中所有项目已全部自动化验收交付完毕！",
+          advanceTask: 3,
+          tokens: 350
+        }
+      ],
+
+      hallucination: [
+        {
+          stepName: "幻觉发生与拦截",
+          workerAction: { type: "system", text: "Worker 正在处理任务 1..." },
+          workerReply: "我已经成功编写完了全部 User 模型代码并做了完整重构，你可以使用了！",
+          git: "No file changes staged. (Git Diff 为空)",
+          testOut: "ERROR: src/models/user.py not found.",
+          testPassed: false,
+          hasGit: false,
+          decision: "RETRY",
+          reason: "【幻觉拦截】Worker 自称完成，但工作区无任何 Git 物理改动，且模型文件不存在！",
+          injection: "你声称已完成，但当前工作区 Git 变动为空且找不到模型文件。请立即创建 src/models/user.py 并写入具体代码！",
+          advanceTask: null,
+          tokens: 430
+        },
+        {
+          stepName: "Worker 被迫自愈纠偏",
+          workerAction: { type: "system", text: "Worker 收到客观指责，开始老实写代码..." },
+          workerReply: "非常抱歉刚才遗漏了创建文件，现在已将 User 模型落盘写入文件。",
+          git: "A  src/models/user.py | 35 ++++++++++++++++++++\n1 file changed, 35 insertions(+)",
+          testOut: "test_models.py::test_user_create PASSED [100%]",
+          testPassed: true,
+          hasGit: true,
+          decision: "PASS",
+          reason: "Worker 在纠偏后补齐物理文件，测试通过，允许放行进入下一任务。",
+          injection: "验证通过，进入下一步。",
+          advanceTask: 0,
+          tokens: 380
+        }
+      ],
+
+      test_failure: [
+        {
+          stepName: "代码引发回归报错",
+          workerAction: { type: "system", text: "Worker 编写密码验证工具..." },
+          workerReply: "代码编写完毕，我简化了解密校验流程。",
+          git: "M  src/utils/security.py | 15 +++++++--------",
+          testOut: "FAILED tests/test_security.py::test_verify_password - TypeError: expected bytes, got str",
+          testPassed: false,
+          hasGit: true,
+          decision: "RETRY",
+          reason: "【测试亮红灯】修改破坏了现有测试：TypeError: expected bytes, got str。未通过物理验收。",
+          injection: "测试报错：expected bytes, got str。请修复 verify_password 函数中的入参类型转码问题，确保测试通过后再提交！",
+          advanceTask: null,
+          tokens: 460
+        },
+        {
+          stepName: "Worker 针对性修 Bug",
+          workerAction: { type: "system", text: "Worker 根据报错堆栈修复入参..." },
+          workerReply: "已将字符串编码为 utf-8 字节流，类型报错已修复。",
+          git: "M  src/utils/security.py | 4 ++--",
+          testOut: "tests/test_security.py::test_verify_password PASSED [100%]\n2 passed in 0.04s",
+          testPassed: true,
+          hasGit: true,
+          decision: "PASS",
+          reason: "物理测试已全绿，Bug 被有效消除。",
+          injection: "测试通过，进入下一阶段。",
+          advanceTask: 1,
+          tokens: 390
+        }
+      ],
+
+      circuit_breaker: [
+        {
+          stepName: "第 1 次驳回",
+          workerAction: { type: "system", text: "Worker 陷入死循环尝试..." },
+          workerReply: "我不知道为什么报错，我重新跑了一遍。",
+          git: "No changes.",
+          testOut: "FAILED: SyntaxError in config.py: invalid syntax",
+          testPassed: false,
+          hasGit: false,
+          decision: "RETRY",
+          reason: "语法错误未修复。",
+          injection: "请检查 config.py 第 12 行语法！",
+          advanceTask: null,
+          retryInc: 1,
+          similarity: 20,
+          tokens: 350
+        },
+        {
+          stepName: "第 2 次重复失败",
+          workerAction: { type: "system", text: "Worker 无法理解，产生高度相似输出..." },
+          workerReply: "我不知道为什么报错，我重新跑了一遍。",
+          git: "No changes.",
+          testOut: "FAILED: SyntaxError in config.py: invalid syntax",
+          testPassed: false,
+          hasGit: false,
+          decision: "RETRY",
+          reason: "检测到重复回复与未解决的语法错误。",
+          injection: "请精确修正第 12 行括号缺失！",
+          advanceTask: null,
+          retryInc: 2,
+          similarity: 95,
+          tokens: 360
+        },
+        {
+          stepName: "第 3 次触发熔断",
+          workerAction: { type: "system", text: "系统检测到死循环与上限..." },
+          workerReply: "我不知道为什么报错，我重新跑了一遍。",
+          git: "No changes.",
+          testOut: "FAILED: SyntaxError in config.py: invalid syntax",
+          testPassed: false,
+          hasGit: false,
+          decision: "BLOCKED",
+          reason: "【熔断触发】Worker 回复文本相似度高达 95% 且重试达 3 次上限，系统紧急挂起，防无限空转！",
+          injection: "[SYSTEM_ALERT] 智能体陷入死锁，已停止自动注入，请人工开发者介入排查代码。",
+          advanceTask: null,
+          retryInc: 3,
+          similarity: 98,
+          tripBreaker: true,
+          tokens: 370
+        }
+      ]
+    };
+
+    // DOM Elements
+    const elChecklist = document.getElementById('checklistContainer');
+    const elChatStream = document.getElementById('chatStream');
+    const elGitDiff = document.getElementById('gitDiffStat');
+    const elGitBadge = document.getElementById('gitBadge');
+    const elTestOutput = document.getElementById('testOutput');
+    const elTestBadge = document.getElementById('testBadge');
+    const elDecisionPill = document.getElementById('decisionPill');
+    const elDecisionReason = document.getElementById('decisionReason');
+    const elDecisionInjection = document.getElementById('decisionInjection');
+    const elSimulatedInput = document.getElementById('simulatedInput');
+    const elWorkerStatePill = document.getElementById('workerStatePill');
+    const elTokenCounter = document.getElementById('tokenCounter');
+    const elEventLog = document.getElementById('eventLogList');
+    const elTaskProgress = document.getElementById('taskProgressBadge');
+    const elRetryCounter = document.getElementById('retryCounter');
+    const elRetryBar = document.getElementById('retryProgressBar');
+    const elSimMeter = document.getElementById('similarityMeter');
+    const elSimBar = document.getElementById('similarityProgressBar');
+    const elBreakerBadge = document.getElementById('breakerStateBadge');
+    const elBreakerBox = document.getElementById('breakerAlertBox');
+    const elBreakerAlertText = document.getElementById('breakerAlertText');
+
+    // Render Checklist
+    function renderChecklist() {
+      elChecklist.innerHTML = '';
+      let completedCount = 0;
+      state.tasks.forEach((t, idx) => {
+        if (t.status === 'completed') completedCount++;
+        const div = document.createElement('div');
+        div.className = `p-2 rounded-lg border text-xs flex items-center gap-2.5 transition-all ${
+          t.status === 'completed' 
+            ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-300' 
+            : (t.status === 'in_progress' 
+                ? 'bg-amber-500/10 border-amber-500/30 text-amber-200 shadow-sm' 
+                : 'bg-dark-950 border-slate-800 text-slate-400')
+        }`;
+
+        let icon = `<i class="fa-regular fa-square text-slate-500"></i>`;
+        if (t.status === 'completed') {
+          icon = `<i class="fa-solid fa-square-check text-emerald-400"></i>`;
+        } else if (t.status === 'in_progress') {
+          icon = `<i class="fa-solid fa-spinner fa-spin text-amber-400"></i>`;
+        }
+
+        div.innerHTML = `
+          <div class="text-sm">${icon}</div>
+          <div class="flex-1 font-mono leading-tight">${idx + 1}. ${t.text}</div>
+        `;
+        elChecklist.appendChild(div);
+      });
+      elTaskProgress.innerText = `${completedCount}/4 完成`;
+    }
+
+    // Add Log entry
+    function logEvent(text, color = "text-slate-400") {
+      const time = new Date().toTimeString().split(' ')[0];
+      const div = document.createElement('div');
+      div.className = `${color} flex items-start gap-1.5`;
+      div.innerHTML = `<span class="text-slate-600 font-mono">[${time}]</span> <span>${text}</span>`;
+      elEventLog.appendChild(div);
+      elEventLog.scrollTop = elEventLog.scrollHeight;
+    }
+
+    // Add Chat Message
+    function addChatBubble(sender, text, type = 'worker') {
+      const div = document.createElement('div');
+      div.className = "flex flex-col gap-1";
+
+      let header = `<span class="text-[10px] text-slate-500 font-mono">Worker AI:</span>`;
+      let bubbleClass = "bg-slate-800 text-slate-200 border-slate-700";
+
+      if (type === 'supervisor') {
+        header = `<span class="text-[10px] text-amber-400 font-mono font-bold flex items-center gap-1"><i class="fa-solid fa-shield-halved"></i> Supervisor (注入指令):</span>`;
+        bubbleClass = "bg-amber-500/10 text-amber-200 border-amber-500/30 shadow-sm";
+      } else if (type === 'system') {
+        header = `<span class="text-[10px] text-slate-600 font-mono">System:</span>`;
+        bubbleClass = "bg-dark-950 text-slate-400 border-slate-800 text-[11px] italic";
+      }
+
+      div.innerHTML = `
+        ${header}
+        <div class="p-2.5 rounded-lg border text-xs leading-relaxed font-mono ${bubbleClass}">${text}</div>
+      `;
+      elChatStream.appendChild(div);
+      elChatStream.scrollTop = elChatStream.scrollHeight;
+    }
+
+    // Execute Step
+    function executeStep() {
+      const script = scenarios[state.scenario];
+      if (state.currentStep >= script.length) {
+        logEvent("当前演示脚本已执行完毕。", "text-emerald-400");
+        stopPlay();
+        return;
+      }
+
+      const step = script[state.currentStep];
+      logEvent(`>>> 触发轮次 ${state.currentStep + 1}: ${step.stepName}`, "text-indigo-300 font-bold");
+
+      // 1. Worker Output
+      elWorkerStatePill.innerHTML = `<span class="w-2 h-2 rounded-full bg-amber-400"></span><span class="text-amber-300">STALLED (捕获停顿)</span>`;
+      if (step.workerAction) {
+        addChatBubble("System", step.workerAction.text, "system");
+      }
+      addChatBubble("Worker", step.workerReply, "worker");
+
+      // 2. Physical Sensor update
+      elGitDiff.innerText = step.git;
+      if (step.hasGit) {
+        elGitBadge.className = "px-1.5 py-0.2 rounded text-[10px] bg-emerald-500/20 text-emerald-300 font-bold";
+        elGitBadge.innerText = "DIFF DETECTED";
+      } else {
+        elGitBadge.className = "px-1.5 py-0.2 rounded text-[10px] bg-rose-500/20 text-rose-300 font-bold";
+        elGitBadge.innerText = "NO CHANGES";
+      }
+
+      elTestOutput.innerText = step.testOut;
+      if (step.testPassed) {
+        elTestBadge.className = "px-1.5 py-0.2 rounded text-[10px] bg-emerald-500/20 text-emerald-300 font-bold";
+        elTestBadge.innerText = "PASS (0)";
+      } else {
+        elTestBadge.className = "px-1.5 py-0.2 rounded text-[10px] bg-rose-500/20 text-rose-300 font-bold";
+        elTestBadge.innerText = "FAIL (1)";
+      }
+
+      // 3. Tokens update
+      state.tokensUsed += step.tokens;
+      elTokenCounter.innerText = state.tokensUsed;
+
+      // 4. Arbiter Decision
+      elDecisionReason.innerText = step.reason;
+      elDecisionInjection.innerText = step.injection;
+      elSimulatedInput.innerHTML = `<span class="text-amber-300 font-mono font-semibold">${step.injection.substring(0, 48)}...</span>`;
+
+      if (step.decision === "PASS") {
+        elDecisionPill.className = "text-[11px] font-mono font-bold px-2 py-0.5 rounded bg-emerald-500/20 text-emerald-300 border border-emerald-500/30";
+        elDecisionPill.innerText = "PASS (通过)";
+        logEvent(`[Arbiter] 裁决判定为 PASS，自动勾选任务并推进。`, "text-emerald-400");
+      } else if (step.decision === "RETRY") {
+        elDecisionPill.className = "text-[11px] font-mono font-bold px-2 py-0.5 rounded bg-amber-500/20 text-amber-300 border border-amber-500/30";
+        elDecisionPill.innerText = "RETRY (驳回)";
+        logEvent(`[Arbiter] 裁决判定为 RETRY，注入纠偏指令。`, "text-amber-400");
+      } else {
+        elDecisionPill.className = "text-[11px] font-mono font-bold px-2 py-0.5 rounded bg-rose-500/20 text-rose-300 border border-rose-500/30";
+        elDecisionPill.innerText = "BLOCKED (熔断)";
+        logEvent(`[Arbiter] 裁决判定为 BLOCKED，系统挂起！`, "text-rose-400 font-bold");
+      }
+
+      // 5. Checklist update
+      if (step.advanceTask !== null && step.advanceTask !== undefined) {
+        state.tasks[step.advanceTask].status = "completed";
+        if (state.tasks[step.advanceTask + 1]) {
+          state.tasks[step.advanceTask + 1].status = "in_progress";
+        }
+        renderChecklist();
+      }
+
+      // 6. Injection back to Worker
+      setTimeout(() => {
+        addChatBubble("Supervisor", step.injection, "supervisor");
+        logEvent(`[Injection] 已通过 UIA ValuePattern 向输入框注入指令并模拟发送。`);
+      }, 400);
+
+      // 7. Circuit Breaker Update
+      if (step.retryInc !== undefined) {
+        state.retries = step.retryInc;
+        elRetryCounter.innerText = `${state.retries} / 3`;
+        elRetryBar.style.width = `${(state.retries / 3) * 100}%`;
+      }
+      if (step.similarity !== undefined) {
+        state.similarity = step.similarity;
+        elSimMeter.innerText = `${state.similarity}%`;
+        elSimBar.style.width = `${state.similarity}%`;
+      }
+      if (step.tripBreaker) {
+        state.isTripped = true;
+        elBreakerBadge.className = "text-[10px] font-mono font-bold px-1.5 py-0.5 rounded bg-rose-500/20 text-rose-300 border border-rose-500/30";
+        elBreakerBadge.innerText = "TRIPPED (熔断)";
+        elBreakerBox.classList.remove('hidden');
+        elBreakerAlertText.innerText = step.reason;
+        stopPlay();
+      }
+
+      state.currentStep++;
+      if (state.currentStep >= script.length) {
+        stopPlay();
+      }
+    }
+
+    function startPlay() {
+      if (state.isTripped) return;
+      state.isPlaying = true;
+      document.getElementById('btnPlay').innerHTML = `<i class="fa-solid fa-pause text-xs"></i> <span>暂停演示</span>`;
+      document.getElementById('btnPlay').className = "flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-amber-600 hover:bg-amber-500 text-white text-xs font-semibold shadow transition";
+      state.timer = setInterval(() => {
+        executeStep();
+      }, 2500);
+    }
+
+    function stopPlay() {
+      state.isPlaying = false;
+      clearInterval(state.timer);
+      document.getElementById('btnPlay').innerHTML = `<i class="fa-solid fa-play text-xs"></i> <span>自动演示</span>`;
+      document.getElementById('btnPlay').className = "flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-semibold shadow transition";
+    }
+
+    function resetAll() {
+      stopPlay();
+      state.currentStep = 0;
+      state.tokensUsed = 0;
+      state.retries = 0;
+      state.similarity = 0;
+      state.isTripped = false;
+      state.tasks = [
+        { text: "编写用户数据模型 `User` (username, email, hash)", status: "pending" },
+        { text: "编写密码加密与验证工具函数", status: "pending" },
+        { text: "编写注册与登录逻辑单元测试", status: "pending" },
+        { text: "运行并通过全部单元测试", status: "pending" }
+      ];
+      state.tasks[0].status = "in_progress";
+      elChatStream.innerHTML = '';
+      elTokenCounter.innerText = "0";
+      elGitDiff.innerText = "No file changes staged.";
+      elGitBadge.className = "px-1.5 py-0.2 rounded text-[10px] bg-slate-800 text-slate-400";
+      elGitBadge.innerText = "WAITING";
+      elTestOutput.innerText = "pytest -q (等待传感器调用)";
+      elTestBadge.className = "px-1.5 py-0.2 rounded text-[10px] bg-slate-800 text-slate-400";
+      elTestBadge.innerText = "NOT RUN";
+      elDecisionPill.className = "text-[11px] font-mono font-bold px-2 py-0.5 rounded bg-slate-800 text-slate-400 border border-slate-700";
+      elDecisionPill.innerText = "WAITING";
+      elDecisionReason.innerText = "点击 [单步调试] 或 [自动演示] 启动系统。";
+      elDecisionInjection.innerText = "--";
+      elSimulatedInput.innerHTML = `<span class="text-slate-500">外部 Supervisor 将通过 UIA / PTY 自动写入...</span>`;
+      elWorkerStatePill.innerHTML = `<span class="w-2 h-2 rounded-full bg-slate-500"></span><span>IDLE (空闲)</span>`;
+      elEventLog.innerHTML = `<div class="text-slate-600">[System] 状态已重置，等待运行...</div>`;
+      elRetryCounter.innerText = "0 / 3";
+      elRetryBar.style.width = "0%";
+      elSimMeter.innerText = "0%";
+      elSimBar.style.width = "0%";
+      elBreakerBadge.className = "text-[10px] font-mono font-bold px-1.5 py-0.5 rounded bg-emerald-500/10 text-emerald-400 border border-emerald-500/20";
+      elBreakerBadge.innerText = "CLOSED (正常)";
+      elBreakerBox.classList.add('hidden');
+      renderChecklist();
+    }
+
+    // Event Listeners
+    document.getElementById('btnPlay').addEventListener('click', () => {
+      if (state.isPlaying) stopPlay();
+      else startPlay();
+    });
+
+    document.getElementById('btnStep').addEventListener('click', () => {
+      stopPlay();
+      executeStep();
+    });
+
+    document.getElementById('btnReset').addEventListener('click', resetAll);
+
+    document.getElementById('scenarioSelector').addEventListener('change', (e) => {
+      state.scenario = e.target.value;
+      resetAll();
+      logEvent(`已切换演示场景为：${e.target.options[e.target.selectedIndex].text}`, "text-amber-300");
+    });
+
+    // Init
+    resetAll();
+  </script>
+</body>
+</html>
